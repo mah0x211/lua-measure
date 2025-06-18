@@ -5,4 +5,5 @@ modules = {
     -- define the modules for coverage reporting
     ["measure.describe"] = "lib/describe.lua",
     ["measure.getinfo"] = "lib/getinfo.lua",
+    ["measure.registry"] = "lib/registry.lua",
 }
