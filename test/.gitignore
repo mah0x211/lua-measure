@@ -1,0 +1,9 @@
+# ignore all files in this directory
+*
+
+# allow the directory itself to be tracked
+!*/
+
+# exclude the following files from being ignored
+!.gitignore
+!*_test.lua

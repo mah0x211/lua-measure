@@ -8,7 +8,7 @@
 --
 --  the followings are declared in the `measure.describe` module.
 --
---- @class measure.describe.spec
+--- @class _measure.describe.spec
 --- @field name string The name of the benchmark
 --- @field namefn function|nil The function to describe the benchmark name
 --- @field options table The options for the benchmark
@@ -18,8 +18,8 @@
 --- @field measure function|nil The measure function for the benchmark
 --- @field teardown function|nil The teardown function for the benchmark
 -- This is the describer for the benchmark, it is used to describe the benchmark
---- @class measure.describe
---- @field spec measure.describe.spec
+--- @class _measure.describe
+--- @field spec _measure.describe.spec
 local BenchmarkDescribe = {}
 BenchmarkDescribe.__index = BenchmarkDescribe
 BenchmarkDescribe.__tostring = function(self)
@@ -140,7 +140,7 @@ end
 -- Create a new describe object
 --- @param name string The name of the benchmark
 --- @param namefn function|nil The function to describe the benchmark name
---- @return measure.describe? The new describe object, or nil and an error message
+--- @return _measure.describe? The new describe object, or nil and an error message
 --- @return any The error message if the describe object could not be created
 local function new_describe(name, namefn)
     if type(name) ~= 'string' then
@@ -173,10 +173,10 @@ end
 --
 
 --- the measure.registry.spec used to the file-scoped benchmark registry.
---- @class measure.regstry.spec
+--- @class _measure.regstry.spec
 --- @field filename string The filename of the benchmark file.
 --- @field hooks table<string, function> The hooks for the benchmark
---- @field describes table<string, measure.describe> The describes for the benchmark
+--- @field describes table<string, _measure.describe> The describes for the benchmark
 local Spec = {}
 Spec.__index = Spec
 
@@ -210,7 +210,7 @@ end
 -- create a new describe object and add it to the registry
 --- @param name string The name of the describe
 --- @param namefn function|nil The function to describe the benchmark name
---- @return measure.describe|nil The new describe object, or nil and an error message
+--- @return _measure.describe|nil The new describe object, or nil and an error message
 --- @return string|nil The error message if the describe object could not be created
 function Spec:new_describe(name, namefn)
     -- Create a new describe object
@@ -231,13 +231,13 @@ function Spec:new_describe(name, namefn)
     return desc
 end
 
---- @type table<string, measure.regstry.spec>
+--- @type table<string, _measure.regstry.spec>
 local Registry = {}
 
 --- Get or create a new spec for the benchmark file.
 --- This function is used to create a new spec for the benchmark file if it does
 --- not exist, or return the existing spec if it does.
---- @return measure.regstry.spec
+--- @return _measure.regstry.spec
 local function new()
     -- get the file path from the caller
     local filename = '/path/to/benchmark/example_bench.lua'

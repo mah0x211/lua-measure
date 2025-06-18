@@ -1,0 +1,382 @@
+require('luacov')
+local testcase = require('testcase')
+local assert = require('assert')
+local new_describe = require('measure.describe')
+
+function testcase.new_describe()
+    -- test create valid describe instance
+    local desc = assert(new_describe('test benchmark'))
+    assert.equal(tostring(desc), 'measure.describe "test benchmark"')
+    assert.equal(desc.spec.name, 'test benchmark')
+    assert.is_nil(desc.spec.namefn)
+
+    -- test create with namefn
+    local namefn = function(i) return 'test ' .. i end
+    desc = assert(new_describe('test benchmark', namefn))
+    assert.equal(desc.spec.name, 'test benchmark')
+    assert.equal(desc.spec.namefn, namefn)
+
+    -- test tostring
+    assert.equal(tostring(desc), 'measure.describe "test benchmark"')
+
+    -- test invalid name type
+    local d, err = new_describe(123)
+    assert.is_nil(d)
+    assert.equal(err, 'name must be a string, got "number"')
+
+    -- test invalid namefn type
+    d, err = new_describe('test', 'not a function')
+    assert.is_nil(d)
+    assert.equal(err, 'namefn must be a function or nil, got "string"')
+end
+
+function testcase.options()
+    local desc = assert(new_describe('test'))
+
+    -- test valid options
+    local ok, err = desc:options({
+        context = { foo = 'bar' },
+        repeats = 10,
+        warmup = 5,
+        sample_size = 100
+    })
+    assert.is_true(ok)
+    assert.is_nil(err)
+    assert.is_table(desc.spec.options)
+
+    -- test options with function values
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        context = function() return {} end,
+        repeats = function() return 10 end,
+        warmup = function() return 5 end,
+        sample_size = function() return 100 end
+    })
+    assert.is_true(ok)
+    assert.is_nil(err)
+
+    -- test invalid argument type
+    desc = assert(new_describe('test'))
+    ok, err = desc:options('not a table')
+    assert.is_false(ok)
+    assert.equal(err, 'argument must be a table')
+
+    -- test cannot define twice
+    desc = assert(new_describe('test'))
+    assert(desc:options({}))
+    ok, err = desc:options({})
+    assert.is_false(ok)
+    assert.equal(err, 'options cannot be defined twice')
+
+    -- test must be defined before setup
+    desc = assert(new_describe('test'))
+    assert(desc:setup(function() end))
+    ok, err = desc:options({})
+    assert.is_false(ok)
+    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or measure()')
+
+    -- test must be defined before setup_once
+    desc = assert(new_describe('test'))
+    assert(desc:setup_once(function() end))
+    ok, err = desc:options({})
+    assert.is_false(ok)
+    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or measure()')
+
+    -- test must be defined before run
+    desc = assert(new_describe('test'))
+    assert(desc:run(function() end))
+    ok, err = desc:options({})
+    assert.is_false(ok)
+    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or measure()')
+
+    -- test must be defined before measure
+    desc = assert(new_describe('test'))
+    assert(desc:measure(function() end))
+    ok, err = desc:options({})
+    assert.is_false(ok)
+    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or measure()')
+
+    -- test invalid context type
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({ context = 123 })
+    assert.is_false(ok)
+    assert.equal(err, 'options.context must be a table or a function')
+
+    -- test invalid repeats type
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({ repeats = 'not a number' })
+    assert.is_false(ok)
+    assert.equal(err, 'options.repeats must be a number or a function')
+
+    -- test invalid repeats value (negative)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({ repeats = -1 })
+    assert.is_false(ok)
+    assert.equal(err, 'options.repeats must be a positive integer')
+
+    -- test invalid repeats value (float)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({ repeats = 1.5 })
+    assert.is_false(ok)
+    assert.equal(err, 'options.repeats must be a positive integer')
+
+    -- test invalid warmup type
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({ warmup = 'not a number' })
+    assert.is_false(ok)
+    assert.equal(err, 'options.warmup must be a number or a function')
+
+    -- test invalid warmup value (negative)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({ warmup = -1 })
+    assert.is_false(ok)
+    assert.equal(err, 'options.warmup must be a non-negative integer')
+
+    -- test valid warmup value (zero)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({ warmup = 0 })
+    assert.is_true(ok)
+    assert.is_nil(err)
+
+    -- test invalid sample_size type
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({ sample_size = 'not a number' })
+    assert.is_false(ok)
+    assert.equal(err, 'options.sample_size must be a number or a function')
+
+    -- test invalid sample_size value (zero)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({ sample_size = 0 })
+    assert.is_false(ok)
+    assert.equal(err, 'options.sample_size must be a positive integer')
+end
+
+function testcase.setup()
+    local desc = assert(new_describe('test'))
+    local setup_fn = function() end
+
+    -- test valid setup
+    local ok, err = desc:setup(setup_fn)
+    assert.is_true(ok)
+    assert.is_nil(err)
+    assert.equal(desc.spec.setup, setup_fn)
+
+    -- test invalid argument type
+    desc = assert(new_describe('test'))
+    ok, err = desc:setup('not a function')
+    assert.is_false(ok)
+    assert.equal(err, 'argument must be a function')
+
+    -- test cannot define twice
+    desc = assert(new_describe('test'))
+    assert(desc:setup(setup_fn))
+    ok, err = desc:setup(setup_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'cannot be defined twice')
+
+    -- test cannot define if setup_once is defined
+    desc = assert(new_describe('test'))
+    assert(desc:setup_once(function() end))
+    ok, err = desc:setup(setup_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'cannot be defined if setup_once() is defined')
+
+    -- test must be defined before run
+    desc = assert(new_describe('test'))
+    assert(desc:run(function() end))
+    ok, err = desc:setup(setup_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'must be defined before run() or measure()')
+
+    -- test must be defined before measure
+    desc = assert(new_describe('test'))
+    assert(desc:measure(function() end))
+    ok, err = desc:setup(setup_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'must be defined before run() or measure()')
+end
+
+function testcase.setup_once()
+    local desc = assert(new_describe('test'))
+    local setup_once_fn = function() end
+
+    -- test valid setup_once
+    local ok, err = desc:setup_once(setup_once_fn)
+    assert.is_true(ok)
+    assert.is_nil(err)
+    assert.equal(desc.spec.setup_once, setup_once_fn)
+
+    -- test invalid argument type
+    desc = assert(new_describe('test'))
+    ok, err = desc:setup_once('not a function')
+    assert.is_false(ok)
+    assert.equal(err, 'argument must be a function')
+
+    -- test cannot define twice
+    desc = assert(new_describe('test'))
+    assert(desc:setup_once(setup_once_fn))
+    ok, err = desc:setup_once(setup_once_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'cannot be defined twice')
+
+    -- test cannot define if setup is defined
+    desc = assert(new_describe('test'))
+    assert(desc:setup(function() end))
+    ok, err = desc:setup_once(setup_once_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'cannot be defined if setup() is defined')
+
+    -- test must be defined before run
+    desc = assert(new_describe('test'))
+    assert(desc:run(function() end))
+    ok, err = desc:setup_once(setup_once_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'must be defined before run() or measure()')
+
+    -- test must be defined before measure
+    desc = assert(new_describe('test'))
+    assert(desc:measure(function() end))
+    ok, err = desc:setup_once(setup_once_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'must be defined before run() or measure()')
+end
+
+function testcase.run()
+    local desc = assert(new_describe('test'))
+    local run_fn = function() end
+
+    -- test valid run
+    local ok, err = desc:run(run_fn)
+    assert.is_true(ok)
+    assert.is_nil(err)
+    assert.equal(desc.spec.run, run_fn)
+
+    -- test invalid argument type
+    desc = assert(new_describe('test'))
+    ok, err = desc:run('not a function')
+    assert.is_false(ok)
+    assert.equal(err, 'argument must be a function')
+
+    -- test cannot define twice
+    desc = assert(new_describe('test'))
+    assert(desc:run(run_fn))
+    ok, err = desc:run(run_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'cannot be defined twice')
+
+    -- test cannot define if measure is defined
+    desc = assert(new_describe('test'))
+    assert(desc:measure(function() end))
+    ok, err = desc:run(run_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'cannot be defined if measure() is defined')
+end
+
+function testcase.measure()
+    local desc = assert(new_describe('test'))
+    local measure_fn = function() end
+
+    -- test valid measure
+    local ok, err = desc:measure(measure_fn)
+    assert.is_true(ok)
+    assert.is_nil(err)
+    assert.equal(desc.spec.measure, measure_fn)
+
+    -- test invalid argument type
+    desc = assert(new_describe('test'))
+    ok, err = desc:measure('not a function')
+    assert.is_false(ok)
+    assert.equal(err, 'argument must be a function')
+
+    -- test cannot define twice
+    desc = assert(new_describe('test'))
+    assert(desc:measure(measure_fn))
+    ok, err = desc:measure(measure_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'cannot be defined twice')
+
+    -- test cannot define if run is defined
+    desc = assert(new_describe('test'))
+    assert(desc:run(function() end))
+    ok, err = desc:measure(measure_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'cannot be defined if run() is defined')
+end
+
+function testcase.teardown()
+    local desc = assert(new_describe('test'))
+    local teardown_fn = function() end
+
+    -- test valid teardown after run
+    assert(desc:run(function() end))
+    local ok, err = desc:teardown(teardown_fn)
+    assert.is_true(ok)
+    assert.is_nil(err)
+    assert.equal(desc.spec.teardown, teardown_fn)
+
+    -- test valid teardown after measure
+    desc = assert(new_describe('test'))
+    assert(desc:measure(function() end))
+    ok, err = desc:teardown(teardown_fn)
+    assert.is_true(ok)
+    assert.is_nil(err)
+    assert.equal(desc.spec.teardown, teardown_fn)
+
+    -- test invalid argument type
+    desc = assert(new_describe('test'))
+    assert(desc:run(function() end))
+    ok, err = desc:teardown('not a function')
+    assert.is_false(ok)
+    assert.equal(err, 'argument must be a function')
+
+    -- test cannot define twice
+    desc = assert(new_describe('test'))
+    assert(desc:run(function() end))
+    assert(desc:teardown(teardown_fn))
+    ok, err = desc:teardown(teardown_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'cannot be defined twice')
+
+    -- test must be defined after run or measure
+    desc = assert(new_describe('test'))
+    ok, err = desc:teardown(teardown_fn)
+    assert.is_false(ok)
+    assert.equal(err, 'must be defined after run() or measure()')
+end
+
+function testcase.complete_workflow()
+    -- test typical workflow with options, setup, run, teardown
+    local desc = assert(new_describe('complete test'))
+    assert(desc:options({ warmup = 10, sample_size = 100 }))
+    assert(desc:setup(function(i, _) return 'test' .. i end))
+    assert(desc:run(function(data) return data .. data end))
+    assert(desc:teardown(function(_) end))
+
+    -- verify all spec fields are set
+    assert.is_table(desc.spec.options)
+    assert.is_function(desc.spec.setup)
+    assert.is_function(desc.spec.run)
+    assert.is_function(desc.spec.teardown)
+    assert.is_nil(desc.spec.setup_once)
+    assert.is_nil(desc.spec.measure)
+
+    -- test workflow with setup_once and measure
+    desc = assert(new_describe('test with setup_once', function(i) return 'iteration ' .. i end))
+    assert(desc:options({ context = { multiplier = 2 } }))
+    assert(desc:setup_once(function() return { data = 'shared' } end))
+    assert(desc:measure(function(_, _, _)
+        local start = os.clock()
+        -- do work
+        local stop = os.clock()
+        return stop - start
+    end))
+
+    -- verify spec fields
+    assert.is_table(desc.spec.options)
+    assert.is_function(desc.spec.setup_once)
+    assert.is_function(desc.spec.measure)
+    assert.is_function(desc.spec.namefn)
+    assert.is_nil(desc.spec.setup)
+    assert.is_nil(desc.spec.run)
+    assert.is_nil(desc.spec.teardown)
+end
