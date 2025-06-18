@@ -1,7 +1,7 @@
 # Measure Registry Module Design Document
 
 Version: 0.1.0  
-Date: 2025-06-17
+Date: 2025-06-18
 
 ## Overview
 
@@ -20,6 +20,7 @@ This module serves as the central registry that:
 ```lua
 -- Module: measure.registry
 local describe = require('measure.describe')
+local getinfo = require('measure.getinfo')
 
 -- Registry of all file specifications
 local Registry = {}
@@ -27,7 +28,8 @@ local Registry = {}
 -- Public API
 return {
     get = get,
-    new = new,
+    new = new_spec,
+    clear = clear,
 }
 ```
 
@@ -59,24 +61,21 @@ Spec.__index = Spec
 
 ```lua
 function Spec:set_hook(name, fn)
-    local HookNames = {
-        before_all = true,
-        before_each = true,
-        after_each = true,
-        after_all = true,
-    }
-    
-    if not HookNames[name] then
-        return false, ('Error: unknown hook %q'):format(tostring(name))
+    if type(name) ~= 'string' then
+        return false, format('name must be a string, got %s', type(name))
     elseif type(fn) ~= 'function' then
-        return false, ('Error: %q must be a function'):format(name)
+        return false, format('fn must be a function, got %s', type(fn))
+    elseif not HOOK_NAMES[name] then
+        return false,
+               format('Invalid hook name %q, must be one of: %s', name,
+                      concat(HOOK_NAMES), ', ')
     end
-    
+
     local v = self.hooks[name]
     if type(v) == 'function' then
-        return false, ('Error: %q cannot be defined twice'):format(name)
+        return false, format('Hook %q already exists, it must be unique', name)
     end
-    
+
     self.hooks[name] = fn
     return true
 end
@@ -87,18 +86,19 @@ end
 ```lua
 function Spec:new_describe(name, namefn)
     -- Create new describe object
-    local desc, err = new_describe(name, namefn)
+    local desc, err = describe(name, namefn)
     if not desc then
         return nil, err
     end
-    
+
     -- Check for duplicate names
     if self.describes[name] then
-        return nil, ('name %q already exists, it must be unique'):format(name)
+        return nil, format('name %q already exists, it must be unique', name)
     end
-    
+
     -- Add to describes list and map
-    self.describes[#self.describes + 1] = desc
+    local idx = #self.describes + 1
+    self.describes[idx] = desc
     self.describes[name] = desc
     return desc
 end
@@ -106,27 +106,31 @@ end
 
 ## Key Functions
 
-### new()
+### new_spec()
 
 Creates or retrieves a spec for the current benchmark file:
 
 ```lua
-local function new()
+local function new_spec()
     -- Get the file path from the caller
-    local filename = get_caller_filename()
-    
+    local info = getinfo(1, 'source')
+    if not info or not info.source then
+        error("Failed to identify caller")
+    end
+
+    local filename = info.source.pathname
     local spec = Registry[filename]
     if spec then
         return spec
     end
-    
+
     -- Create new spec
     spec = setmetatable({
         filename = filename,
         hooks = {},
         describes = {},
     }, Spec)
-    
+
     Registry[filename] = spec
     return spec
 end
@@ -139,6 +143,16 @@ Returns the entire registry:
 ```lua
 local function get()
     return Registry
+end
+```
+
+### clear()
+
+Clears the registry (for testing purposes):
+
+```lua
+local function clear()
+    Registry = {}
 end
 ```
 
@@ -168,12 +182,16 @@ Registry = {
 ## Integration Points
 
 ### Measure Module
-- Calls `new()` to get file-specific spec
+- Calls `new_spec()` to get file-specific spec
 - Uses spec methods for hook and describe management
 
 ### Describe Module
 - Registry imports describe module to create instances
 - Passes describe objects back to measure module
+
+### Getinfo Module
+- Registry uses `getinfo(1, 'source')` to identify the caller file
+- Provides accurate filename detection for file-scoped isolation
 
 ## File Isolation
 
@@ -182,18 +200,21 @@ Each benchmark file automatically gets its own spec when it requires the measure
 ## Error Messages
 
 The module provides descriptive error messages:
-- `Error: unknown hook "invalid_hook"`
-- `Error: before_all must be a function`
-- `Error: before_all cannot be defined twice`
+- `Invalid hook name "invalid_hook", must be one of: "before_all", "before_each", "after_each", "after_all"`
+- `fn must be a function, got string`
+- `Hook "before_all" already exists, it must be unique`
 - `name "Test" already exists, it must be unique`
+- `name must be a string, got number`
+- `Failed to identify caller`
 
 ## Usage Flow
 
 1. Benchmark file requires measure module
 2. Measure module calls `registry.new()` 
-3. Registry creates/retrieves spec for that file
-4. Spec manages hooks and describes for that file
-5. Registry maintains mapping for runner access
+3. Registry uses `getinfo(1, 'source')` to identify the caller file
+4. Registry creates/retrieves spec for that file
+5. Spec manages hooks and describes for that file
+6. Registry maintains mapping for runner access
 
 ## Security Considerations
 

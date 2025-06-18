@@ -1,7 +1,7 @@
 # Measure Registryモジュール設計書
 
 バージョン: 0.1.0  
-日付: 2025-06-17
+日付: 2025-06-18
 
 ## 概要
 
@@ -20,6 +20,7 @@ Measure Registryモジュールは、ファイルスコープのベンチマー�
 ```lua
 -- モジュール: measure.registry
 local describe = require('measure.describe')
+local getinfo = require('measure.getinfo')
 
 -- すべてのファイル仕様のレジストリ
 local Registry = {}
@@ -27,7 +28,8 @@ local Registry = {}
 -- パブリックAPI
 return {
     get = get,
-    new = new,
+    new = new_spec,
+    clear = clear,
 }
 ```
 
@@ -59,24 +61,21 @@ Spec.__index = Spec
 
 ```lua
 function Spec:set_hook(name, fn)
-    local HookNames = {
-        before_all = true,
-        before_each = true,
-        after_each = true,
-        after_all = true,
-    }
-    
-    if not HookNames[name] then
-        return false, ('Error: unknown hook %q'):format(tostring(name))
+    if type(name) ~= 'string' then
+        return false, format('name must be a string, got %s', type(name))
     elseif type(fn) ~= 'function' then
-        return false, ('Error: %q must be a function'):format(name)
+        return false, format('fn must be a function, got %s', type(fn))
+    elseif not HOOK_NAMES[name] then
+        return false,
+               format('Invalid hook name %q, must be one of: %s', name,
+                      concat(HOOK_NAMES), ', ')
     end
-    
+
     local v = self.hooks[name]
     if type(v) == 'function' then
-        return false, ('Error: %q cannot be defined twice'):format(name)
+        return false, format('Hook %q already exists, it must be unique', name)
     end
-    
+
     self.hooks[name] = fn
     return true
 end
@@ -87,18 +86,19 @@ end
 ```lua
 function Spec:new_describe(name, namefn)
     -- 新しいdescribeオブジェクトを作成
-    local desc, err = new_describe(name, namefn)
+    local desc, err = describe(name, namefn)
     if not desc then
         return nil, err
     end
-    
+
     -- 重複名をチェック
     if self.describes[name] then
-        return nil, ('name %q already exists, it must be unique'):format(name)
+        return nil, format('name %q already exists, it must be unique', name)
     end
-    
+
     -- describeリストとマップに追加
-    self.describes[#self.describes + 1] = desc
+    local idx = #self.describes + 1
+    self.describes[idx] = desc
     self.describes[name] = desc
     return desc
 end
@@ -106,27 +106,31 @@ end
 
 ## 主要関数
 
-### new()
+### new_spec()
 
 現在のベンチマークファイルのspecを作成または取得します：
 
 ```lua
-local function new()
+local function new_spec()
     -- 呼び出し元からファイルパスを取得
-    local filename = get_caller_filename()
-    
+    local info = getinfo(1, 'source')
+    if not info or not info.source then
+        error("Failed to identify caller")
+    end
+
+    local filename = info.source.pathname
     local spec = Registry[filename]
     if spec then
         return spec
     end
-    
+
     -- 新しいspecを作成
     spec = setmetatable({
         filename = filename,
         hooks = {},
         describes = {},
     }, Spec)
-    
+
     Registry[filename] = spec
     return spec
 end
@@ -139,6 +143,16 @@ end
 ```lua
 local function get()
     return Registry
+end
+```
+
+### clear()
+
+レジストリをクリアします（テスト目的）：
+
+```lua
+local function clear()
+    Registry = {}
 end
 ```
 
@@ -168,12 +182,16 @@ Registry = {
 ## 統合ポイント
 
 ### Measureモジュール
-- `new()`を呼び出してファイル固有のspecを取得
+- `new_spec()`を呼び出してファイル固有のspecを取得
 - フックとdescribe管理にspecメソッドを使用
 
 ### Describeモジュール
 - レジストリはインスタンス作成のためにdescribeモジュールをインポート
 - describeオブジェクトをmeasureモジュールに返す
+
+### Getinfoモジュール
+- レジストリは呼び出し元ファイルを特定するために`getinfo(1, 'source')`を使用
+- ファイルスコープの分離のための正確なファイル名検出を提供
 
 ## ファイル分離
 
@@ -182,18 +200,21 @@ Registry = {
 ## エラーメッセージ
 
 モジュールは説明的なエラーメッセージを提供します：
-- `Error: unknown hook "invalid_hook"`
-- `Error: before_all must be a function`
-- `Error: before_all cannot be defined twice`
+- `Invalid hook name "invalid_hook", must be one of: "before_all", "before_each", "after_each", "after_all"`
+- `fn must be a function, got string`
+- `Hook "before_all" already exists, it must be unique`
 - `name "Test" already exists, it must be unique`
+- `name must be a string, got number`
+- `Failed to identify caller`
 
 ## 使用フロー
 
 1. ベンチマークファイルがmeasureモジュールを要求
 2. Measureモジュールが`registry.new()`を呼び出す
-3. レジストリがそのファイルのspecを作成/取得
-4. Specがそのファイルのフックとdescribeを管理
-5. レジストリがランナーアクセス用のマッピングを維持
+3. レジストリが`getinfo(1, 'source')`を使用して呼び出し元ファイルを特定
+4. レジストリがそのファイルのspecを作成/取得
+5. Specがそのファイルのフックとdescribeを管理
+6. レジストリがランナーアクセス用のマッピングを維持
 
 ## セキュリティ考慮事項
 
