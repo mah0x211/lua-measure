@@ -1,4 +1,7 @@
 codefromstrings = false
 runreport = true
-deletestats = false
-modules = {}
+deletestats = true
+modules = {
+    -- define the modules for coverage reporting
+    ["measure.describe"] = "lib/describe.lua",
+}
