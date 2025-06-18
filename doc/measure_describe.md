@@ -1,7 +1,7 @@
 # Measure Describe Module Design Document
 
-Version: 0.1.0  
-Date: 2025-06-17
+Version: 0.2.0  
+Date: 2025-06-18
 
 ## Overview
 
@@ -19,8 +19,12 @@ This module creates and manages benchmark describe objects that:
 
 ```lua
 -- Module: measure.describe
-local BenchmarkDescribe = {}
-BenchmarkDescribe.__index = BenchmarkDescribe
+local type = type
+local format = string.format
+local floor = math.floor
+
+local Describe = {}
+Describe.__index = Describe
 
 -- Factory function
 local function new_describe(name, namefn)
@@ -32,32 +36,38 @@ return new_describe
 
 ## Core Components
 
-### 1. BenchmarkDescribe Class
+### 1. Describe Class
 
 The main class for benchmark descriptions:
 
 ```lua
 --- @class measure.describe
 --- @field spec measure.describe.spec
-local BenchmarkDescribe = {}
-BenchmarkDescribe.__index = BenchmarkDescribe
-BenchmarkDescribe.__tostring = function(self)
-    return ('Benchmark %q'):format(self.spec.name)
+local Describe = {}
+Describe.__index = Describe
+Describe.__tostring = function(self)
+    return format('measure.describe %q', self.spec.name)
 end
 ```
 
 ### 2. Benchmark Specification
 
 ```lua
+--- @class measure.describe.spec.options
+--- @field context table|function|nil Context for the benchmark
+--- @field repeats number|function|nil Number of repeats for the benchmark
+--- @field warmup number|function|nil Warmup iterations before measuring
+--- @field sample_size number|function|nil Sample size for the benchmark
+
 --- @class measure.describe.spec
 --- @field name string The name of the benchmark
---- @field namefn function|nil The function to describe the benchmark name
---- @field options table The options for the benchmark
---- @field setup function|nil The setup function for the benchmark
---- @field setup_once function|nil The setup_once function for the benchmark
---- @field run function|nil The run function for the benchmark
---- @field measure function|nil The measure function for the benchmark
---- @field teardown function|nil The teardown function for the benchmark
+--- @field namefn function|nil Optional function to generate dynamic names
+--- @field options measure.describe.spec.options|nil Options for the benchmark
+--- @field setup function|nil Setup function for each iteration
+--- @field setup_once function|nil Setup function that runs once before all iterations
+--- @field run function|nil The function to benchmark
+--- @field measure function|nil Custom measure function for timing
+--- @field teardown function|nil Teardown function for cleanup after each iteration
 ```
 
 ## Method Implementations
@@ -67,31 +77,73 @@ end
 Configures benchmark execution parameters:
 
 ```lua
-function BenchmarkDescribe:options(opts)
+function Describe:options(opts)
     local spec = self.spec
     if type(opts) ~= 'table' then
         return false, 'argument must be a table'
     elseif spec.options then
         return false, 'options cannot be defined twice'
     elseif spec.setup or spec.setup_once or spec.run or spec.measure then
-        return false, 
+        return false,
                'options must be defined before setup(), setup_once(), run() or measure()'
     end
     
-    -- Validate options
-    if opts.context and type(opts.context) ~= 'table' and 
-       type(opts.context) ~= 'function' then
-        return false, 'options.context must be a table or a function'
+    -- Validate options using validate_options function
+    local ok, err = validate_options(opts)
+    if not ok then
+        return false, err
     end
-    
-    if opts.repeats and type(opts.repeats) ~= 'number' and 
-       type(opts.repeats) ~= 'function' then
-        return false, 'options.repeats must be a number or a function'
-    end
-    
-    -- Additional validation for warmup, sample_size...
     
     spec.options = opts
+    return true
+end
+
+--- Validate options table values
+--- @param opts table The options table to validate
+--- @return boolean ok True if valid
+--- @return string|nil err Error message if invalid
+local function validate_options(opts)
+    -- Validate context
+    if opts.context ~= nil then
+        local t = type(opts.context)
+        if t ~= 'table' and t ~= 'function' then
+            return false, 'options.context must be a table or a function'
+        end
+    end
+    
+    -- Validate repeats
+    if opts.repeats ~= nil then
+        local t = type(opts.repeats)
+        if t ~= 'number' and t ~= 'function' then
+            return false, 'options.repeats must be a number or a function'
+        end
+        if t == 'number' and (opts.repeats <= 0 or opts.repeats ~= floor(opts.repeats)) then
+            return false, 'options.repeats must be a positive integer'
+        end
+    end
+    
+    -- Validate warmup
+    if opts.warmup ~= nil then
+        local t = type(opts.warmup)
+        if t ~= 'number' and t ~= 'function' then
+            return false, 'options.warmup must be a number or a function'
+        end
+        if t == 'number' and (opts.warmup < 0 or opts.warmup ~= floor(opts.warmup)) then
+            return false, 'options.warmup must be a non-negative integer'
+        end
+    end
+    
+    -- Validate sample_size
+    if opts.sample_size ~= nil then
+        local t = type(opts.sample_size)
+        if t ~= 'number' and t ~= 'function' then
+            return false, 'options.sample_size must be a number or a function'
+        end
+        if t == 'number' and (opts.sample_size <= 0 or opts.sample_size ~= floor(opts.sample_size)) then
+            return false, 'options.sample_size must be a positive integer'
+        end
+    end
+    
     return true
 end
 ```
@@ -101,7 +153,7 @@ end
 Defines initialization logic with mutual exclusivity:
 
 ```lua
-function BenchmarkDescribe:setup(fn)
+function Describe:setup(fn)
     local spec = self.spec
     if type(fn) ~= 'function' then
         return false, 'argument must be a function'
@@ -117,8 +169,20 @@ function BenchmarkDescribe:setup(fn)
     return true
 end
 
-function BenchmarkDescribe:setup_once(fn)
-    -- Similar validation with setup/setup_once mutual exclusivity
+function Describe:setup_once(fn)
+    local spec = self.spec
+    if type(fn) ~= 'function' then
+        return false, 'argument must be a function'
+    elseif spec.setup_once then
+        return false, 'cannot be defined twice'
+    elseif spec.setup then
+        return false, 'cannot be defined if setup() is defined'
+    elseif spec.run or spec.measure then
+        return false, 'must be defined before run() or measure()'
+    end
+    
+    spec.setup_once = fn
+    return true
 end
 ```
 
@@ -127,7 +191,7 @@ end
 Defines benchmark execution with mutual exclusivity:
 
 ```lua
-function BenchmarkDescribe:run(fn)
+function Describe:run(fn)
     local spec = self.spec
     if type(fn) ~= 'function' then
         return false, 'argument must be a function'
@@ -140,6 +204,20 @@ function BenchmarkDescribe:run(fn)
     spec.run = fn
     return true
 end
+
+function Describe:measure(fn)
+    local spec = self.spec
+    if type(fn) ~= 'function' then
+        return false, 'argument must be a function'
+    elseif spec.measure then
+        return false, 'cannot be defined twice'
+    elseif spec.run then
+        return false, 'cannot be defined if run() is defined'
+    end
+    
+    spec.measure = fn
+    return true
+end
 ```
 
 ### teardown()
@@ -147,7 +225,7 @@ end
 Defines cleanup logic:
 
 ```lua
-function BenchmarkDescribe:teardown(fn)
+function Describe:teardown(fn)
     local spec = self.spec
     if type(fn) ~= 'function' then
         return false, 'argument must be a function'
@@ -167,18 +245,18 @@ end
 ```lua
 local function new_describe(name, namefn)
     if type(name) ~= 'string' then
-        return nil, ('name must be a string, got %q'):format(type(name))
+        return nil, format('name must be a string, got %q', type(name))
     elseif namefn ~= nil and type(namefn) ~= 'function' then
-        return nil, ('namefn must be a function or nil, got %q'):format(
-                   type(namefn))
+        return nil, format('namefn must be a function or nil, got %q', type(namefn))
     end
     
-    return setmetatable({
+    local desc = setmetatable({
         spec = {
             name = name,
             namefn = namefn,
         },
-    }, BenchmarkDescribe)
+    }, Describe)
+    return desc
 end
 ```
 
@@ -235,10 +313,29 @@ desc:setup(function(i, ctx) return "test" end)
 desc:run(function(str) return str .. str end)
 ```
 
-## Type Safety
+## Implementation Details
+
+### Local Variables
+
+All built-in functions are cached as local variables for performance and safety:
+```lua
+local type = type
+local format = string.format  
+local floor = math.floor
+```
+
+### Option Validation
+
+Comprehensive validation is performed for all option values:
+- `context`: Must be table or function
+- `repeats`: Must be positive integer or function
+- `warmup`: Must be non-negative integer or function  
+- `sample_size`: Must be positive integer or function
+
+### Type Safety
 
 All inputs are validated for type correctness:
 - Names must be strings
 - Functions must be functions
 - Options must be tables
-- Option values must match expected types
+- Option values must match expected types and constraints

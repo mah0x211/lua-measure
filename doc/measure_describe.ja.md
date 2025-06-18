@@ -1,7 +1,7 @@
 # Measure Describeモジュール設計書
 
-バージョン: 0.1.0  
-日付: 2025-06-17
+バージョン: 0.2.0  
+日付: 2025-06-18
 
 ## 概要
 
@@ -19,8 +19,12 @@ Measure Describeモジュールは、個々のベンチマーク仕様をカプ�
 
 ```lua
 -- モジュール: measure.describe
-local BenchmarkDescribe = {}
-BenchmarkDescribe.__index = BenchmarkDescribe
+local type = type
+local format = string.format
+local floor = math.floor
+
+local Describe = {}
+Describe.__index = Describe
 
 -- ファクトリ関数
 local function new_describe(name, namefn)
@@ -32,17 +36,17 @@ return new_describe
 
 ## コアコンポーネント
 
-### 1. BenchmarkDescribeクラス
+### 1. Describeクラス
 
 ベンチマーク記述のメインクラス：
 
 ```lua
 --- @class measure.describe
 --- @field spec measure.describe.spec
-local BenchmarkDescribe = {}
-BenchmarkDescribe.__index = BenchmarkDescribe
-BenchmarkDescribe.__tostring = function(self)
-    return ('Benchmark %q'):format(self.spec.name)
+local Describe = {}
+Describe.__index = Describe
+Describe.__tostring = function(self)
+    return format('measure.describe %q', self.spec.name)
 end
 ```
 
@@ -67,7 +71,7 @@ end
 ベンチマーク実行パラメータを設定：
 
 ```lua
-function BenchmarkDescribe:options(opts)
+function Describe:options(opts)
     local spec = self.spec
     if type(opts) ~= 'table' then
         return false, 'argument must be a table'
@@ -101,7 +105,7 @@ end
 相互排他性を持つ初期化ロジックを定義：
 
 ```lua
-function BenchmarkDescribe:setup(fn)
+function Describe:setup(fn)
     local spec = self.spec
     if type(fn) ~= 'function' then
         return false, 'argument must be a function'
@@ -117,7 +121,7 @@ function BenchmarkDescribe:setup(fn)
     return true
 end
 
-function BenchmarkDescribe:setup_once(fn)
+function Describe:setup_once(fn)
     -- setup/setup_once相互排他性を持つ同様の検証
 end
 ```
@@ -127,7 +131,7 @@ end
 相互排他性を持つベンチマーク実行を定義：
 
 ```lua
-function BenchmarkDescribe:run(fn)
+function Describe:run(fn)
     local spec = self.spec
     if type(fn) ~= 'function' then
         return false, 'argument must be a function'
@@ -147,7 +151,7 @@ end
 クリーンアップロジックを定義：
 
 ```lua
-function BenchmarkDescribe:teardown(fn)
+function Describe:teardown(fn)
     local spec = self.spec
     if type(fn) ~= 'function' then
         return false, 'argument must be a function'
@@ -178,7 +182,7 @@ local function new_describe(name, namefn)
             name = name,
             namefn = namefn,
         },
-    }, BenchmarkDescribe)
+    }, Describe)
 end
 ```
 
