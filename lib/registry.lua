@@ -44,6 +44,10 @@ local function add_spec(filename, spec)
     elseif not find(tostring(spec), '^measure%.spec') then
         return false,
                format('spec must be a measure.spec, got %q', tostring(spec))
+    elseif Registry[filename] then
+        -- filename already exists in the registry
+        return false,
+               format('filename %q already exists in the registry', filename)
     end
 
     -- Ensure filename can open as a file

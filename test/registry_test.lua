@@ -165,15 +165,15 @@ function testcase.multiple_specs_same_file()
     assert.is_true(ok)
     assert.is_nil(err)
 
-    -- Adding another spec to the same file should overwrite
+    -- Adding another spec to the same file should fail with duplicate error
     ok, err = registry.add(test_file, spec2)
-    assert.is_true(ok)
-    assert.is_nil(err)
+    assert.is_false(ok)
+    assert.match(err, 'already exists in the registry', false)
 
-    -- Verify the second spec is there
+    -- Verify the first spec is still there
     local reg = registry.get()
-    assert.equal(reg[test_file], spec2)
-    assert.is_true(reg[test_file] ~= spec1) -- Use direct comparison
+    assert.equal(reg[test_file], spec1)
+    assert.is_true(reg[test_file] ~= spec2) -- Use direct comparison
 end
 
 function testcase.spec_with_hooks_and_describes()
