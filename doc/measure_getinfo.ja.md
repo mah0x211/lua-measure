@@ -1,7 +1,7 @@
 # Measure Getinfo モジュール設計書
 
-バージョン: 0.1.0  
-日付: 2025-06-18
+バージョン: 0.2.0  
+日付: 2025-06-20
 
 ## 概要
 
@@ -66,17 +66,15 @@ function getinfo(...)
 
 ## 利用可能なフィールド
 
-モジュールは正確に3つのフィールドをサポートします：
+モジュールは正確に4つのフィールドをサポートします：
 
 ### source
 
-ファイルの詳細とソースコードを含むソース情報。
+行詳細とソースコードを含むソース情報。
 
 ```lua
 {
     source = {
-        name = "example.lua",           -- ファイル名のみ（ファイル以外のソースの場合は完全なソース）
-        pathname = "/path/to/example.lua", -- フルパス名（またはソース文字列）
         line_head = 10,                 -- 関数定義の最初の行
         line_tail = 20,                 -- 関数定義の最後の行
         line_current = 15,              -- 現在実行中の行
@@ -86,6 +84,21 @@ function getinfo(...)
 ```
 
 ファイルからロードされた Lua 関数の場合、`code` フィールドには実際のソースコードが含まれます。C 関数や文字列からロードされたコードの場合、`code` は nil になることがあります。
+
+### file
+
+ファイル名とパス名を含むファイル情報。
+
+```lua
+{
+    file = {
+        source = "@example.lua",        -- debug.getinfoからの元のソース文字列
+        name = "example.lua",           -- ファイル名のみ
+        pathname = "/path/to/example.lua", -- 正規化されたフルパス名
+        basedir = "/current/working/dir", -- 現在の作業ディレクトリ
+    }
+}
+```
 
 ### name
 
@@ -122,21 +135,30 @@ local getinfo = require('measure.getinfo')
 
 -- 現在のソース情報を取得
 local info = getinfo(0, 'source')
-print(info.source.name)        -- "example.lua"
-print(info.source.pathname)    -- "/path/to/example.lua"
 print(info.source.line_current) -- 現在の行番号
 if info.source.code then
     print(info.source.code)    -- 関数のソースコード
 end
 ```
 
+### ファイル情報の取得
+
+```lua
+-- ファイル情報を取得
+local info = getinfo(0, 'file')
+print(info.file.name)        -- "example.lua"
+print(info.file.pathname)    -- "/path/to/example.lua"
+print(info.file.basedir)     -- "/current/working/dir"
+print(info.file.source)      -- "@example.lua"
+```
+
 ### 複数フィールドの取得
 
 ```lua
--- ソース、名前、関数情報を取得
-local info = getinfo(0, 'source', 'name', 'function')
+-- ソース、名前、関数、ファイル情報を取得
+local info = getinfo(0, 'source', 'name', 'function', 'file')
 
-print(info.source.name)
+print(info.file.name)
 print(info.name.what)
 print(info['function'].type)  -- "Lua" または "C"
 ```
@@ -157,11 +179,11 @@ vararg_func(1, 2, 3, 4)
 ```lua
 local function get_my_info()
     -- レベルなしでは、呼び出し元がデフォルト
-    return getinfo('source')
+    return getinfo('source', 'file')
 end
 
 local info = get_my_info()
-print(info.source.name)  -- get_my_info が呼ばれたファイルを表示
+print(info.file.name)  -- get_my_info が呼ばれたファイルを表示
 ```
 
 ## measure.registry との統合
@@ -173,12 +195,12 @@ local getinfo = require('measure.getinfo')
 
 function registry.new()
     -- 呼び出し元からファイルパスを取得
-    local info = getinfo(1, 'source')
-    if not info or not info.source then
+    local info = getinfo(1, 'file')
+    if not info or not info.file then
         error("Failed to identify caller")
     end
     
-    local filename = info.source.pathname
+    local filename = info.file.pathname
     -- filename をレジストリキーとして使用...
 end
 ```
@@ -191,7 +213,7 @@ end
 
 2. **ソース読み取り**: ソースコードは、ファイルからロードされた Lua 関数でのみ利用可能です。C 関数や文字列からロードされたコードでは、`code` フィールドは設定されません。
 
-3. **フィールド検証**: `source`、`name`、`function` のみが有効なフィールドです。その他のフィールド名はエラーを引き起こします。
+3. **フィールド検証**: `source`、`name`、`function`、`file` のみが有効なフィールドです。その他のフィールド名はエラーを引き起こします。
 
 4. **パフォーマンス**: 関数は必要なすべてのオプションで `debug.getinfo` を一度呼び出し、その後リクエストされたフィールドのみを抽出します。
 
@@ -218,7 +240,7 @@ getinfo(0, 123)
 
 -- 不明なフィールド
 getinfo(0, 'unknown')
--- エラー: field #2 must be one of "function", "name", "source", got "unknown"
+-- エラー: field #2 must be one of "file", "function", "name", "source", got "unknown"
 
 -- スタックレベルが高すぎる
 getinfo(100, 'source')
@@ -227,4 +249,5 @@ getinfo(100, 'source')
 
 ## バージョン履歴
 
-- **0.1.0** (2025-06-18): 完全なフィールドサポートを持つ初期バージョン
+- **0.2.0** (2025-06-20): `file` フィールドサポートを追加、`source` フィールドからファイル情報を除外するリファクタリング
+- **0.1.0** (2025-06-18): 3つのフィールドサポートを持つ初期バージョン

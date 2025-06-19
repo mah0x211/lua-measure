@@ -1,7 +1,7 @@
 # Measure Getinfo Module Design Document
 
-Version: 0.1.0  
-Date: 2025-06-18
+Version: 0.2.0  
+Date: 2025-06-20
 
 ## Overview
 
@@ -66,17 +66,15 @@ The function throws errors for:
 
 ## Available Fields
 
-The module supports exactly three fields:
+The module supports exactly four fields:
 
 ### source
 
-Source information including file details and source code.
+Source information including line details and source code.
 
 ```lua
 {
     source = {
-        name = "example.lua",           -- Filename only (or full source for non-file sources)
-        pathname = "/path/to/example.lua", -- Full pathname (or source string)
         line_head = 10,                 -- First line of function definition
         line_tail = 20,                 -- Last line of function definition
         line_current = 15,              -- Currently executing line
@@ -86,6 +84,21 @@ Source information including file details and source code.
 ```
 
 For Lua functions loaded from files, the `code` field contains the actual source code. For C functions or code loaded from strings, `code` may be nil.
+
+### file
+
+File information including filename and pathname.
+
+```lua
+{
+    file = {
+        source = "@example.lua",        -- Original source string from debug.getinfo
+        name = "example.lua",           -- Filename only
+        pathname = "/path/to/example.lua", -- Full normalized pathname
+        basedir = "/current/working/dir", -- Current working directory
+    }
+}
+```
 
 ### name
 
@@ -122,21 +135,30 @@ local getinfo = require('measure.getinfo')
 
 -- Get current source info
 local info = getinfo(0, 'source')
-print(info.source.name)        -- "example.lua"
-print(info.source.pathname)    -- "/path/to/example.lua"
 print(info.source.line_current) -- Current line number
 if info.source.code then
     print(info.source.code)    -- Function source code
 end
 ```
 
+### Get File Information
+
+```lua
+-- Get file info
+local info = getinfo(0, 'file')
+print(info.file.name)        -- "example.lua"
+print(info.file.pathname)    -- "/path/to/example.lua"
+print(info.file.basedir)     -- "/current/working/dir"
+print(info.file.source)      -- "@example.lua"
+```
+
 ### Get Multiple Fields
 
 ```lua
--- Get source, name, and function info
-local info = getinfo(0, 'source', 'name', 'function')
+-- Get source, name, function, and file info
+local info = getinfo(0, 'source', 'name', 'function', 'file')
 
-print(info.source.name)
+print(info.file.name)
 print(info.name.what)
 print(info['function'].type)  -- "Lua" or "C"
 ```
@@ -157,11 +179,11 @@ vararg_func(1, 2, 3, 4)
 ```lua
 local function get_my_info()
     -- Without level, defaults to the caller
-    return getinfo('source')
+    return getinfo('source', 'file')
 end
 
 local info = get_my_info()
-print(info.source.name)  -- Will show the file where get_my_info was called
+print(info.file.name)  -- Will show the file where get_my_info was called
 ```
 
 ## Integration with measure.registry
@@ -173,12 +195,12 @@ local getinfo = require('measure.getinfo')
 
 function registry.new()
     -- Get the file path from the caller
-    local info = getinfo(1, 'source')
-    if not info or not info.source then
+    local info = getinfo(1, 'file')
+    if not info or not info.file then
         error("Failed to identify caller")
     end
     
-    local filename = info.source.pathname
+    local filename = info.file.pathname
     -- Use filename as registry key...
 end
 ```
@@ -191,7 +213,7 @@ end
 
 2. **Source Reading**: Source code is only available for Lua functions loaded from files. C functions and string-loaded code won't have the `code` field populated.
 
-3. **Field Validation**: Only `source`, `name`, and `function` are valid fields. Any other field name causes an error.
+3. **Field Validation**: Only `source`, `name`, `function`, and `file` are valid fields. Any other field name causes an error.
 
 4. **Performance**: The function calls `debug.getinfo` once with all necessary options, then extracts only the requested fields.
 
@@ -218,7 +240,7 @@ getinfo(0, 123)
 
 -- Unknown field
 getinfo(0, 'unknown')
--- Error: field #2 must be one of "function", "name", "source", got "unknown"
+-- Error: field #2 must be one of "file", "function", "name", "source", got "unknown"
 
 -- Stack level too high
 getinfo(100, 'source')
@@ -227,4 +249,5 @@ getinfo(100, 'source')
 
 ## Version History
 
-- **0.1.0** (2025-06-18): Initial version with full field support
+- **0.2.0** (2025-06-20): Added `file` field support, refactored `source` field to exclude file information
+- **0.1.0** (2025-06-18): Initial version with three field support
