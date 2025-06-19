@@ -240,3 +240,67 @@ function testcase.registry_isolation()
     assert.equal(retrieved_spec1.describes['Spec1 Test'].spec.name, 'Spec1 Test')
     assert.equal(retrieved_spec2.describes['Spec2 Test'].spec.name, 'Spec2 Test')
 end
+
+function testcase.get_specific_filename()
+    registry.clear()
+
+    -- Add multiple specs
+    local spec1 = new_spec()
+    local spec2 = new_spec()
+
+    local file1 = get_test_file_path('registry_test.lua')
+    local file2 = get_test_file_path('spec_test.lua')
+    registry.add(file1, spec1)
+    registry.add(file2, spec2)
+
+    -- Get specific spec by filename
+    local retrieved_spec1 = registry.get(file1)
+    local retrieved_spec2 = registry.get(file2)
+
+    assert.equal(retrieved_spec1, spec1)
+    assert.equal(retrieved_spec2, spec2)
+    assert.is_true(retrieved_spec1 ~= retrieved_spec2)
+end
+
+function testcase.get_with_nil_parameter()
+    registry.clear()
+
+    -- Add a spec
+    local spec = new_spec()
+    local file = get_test_file_path('registry_test.lua')
+    registry.add(file, spec)
+
+    -- Explicitly pass nil to get all specs
+    local reg = registry.get(nil)
+    assert.is_table(reg)
+    assert.equal(reg[file], spec)
+
+    -- Count should be 1
+    local count = 0
+    for _ in pairs(reg) do
+        count = count + 1
+    end
+    assert.equal(count, 1)
+end
+
+function testcase.get_with_invalid_parameter()
+    registry.clear()
+
+    -- Test with invalid parameter types
+    assert.throws(function()
+        registry.get(123)
+    end, 'filename must be a string or nil')
+
+    assert.throws(function()
+        registry.get(true)
+    end, 'filename must be a string or nil')
+
+    assert.throws(function()
+        registry.get({})
+    end, 'filename must be a string or nil')
+
+    assert.throws(function()
+        registry.get(function()
+        end)
+    end, 'filename must be a string or nil')
+end
