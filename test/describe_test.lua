@@ -73,28 +73,28 @@ function testcase.options()
     assert(desc:setup(function() end))
     ok, err = desc:options({})
     assert.is_false(ok)
-    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or measure()')
+    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or run_with_timer()')
 
     -- test must be defined before setup_once
     desc = assert(new_describe('test'))
     assert(desc:setup_once(function() end))
     ok, err = desc:options({})
     assert.is_false(ok)
-    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or measure()')
+    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or run_with_timer()')
 
     -- test must be defined before run
     desc = assert(new_describe('test'))
     assert(desc:run(function() end))
     ok, err = desc:options({})
     assert.is_false(ok)
-    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or measure()')
+    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or run_with_timer()')
 
-    -- test must be defined before measure
+    -- test must be defined before run_with_timer
     desc = assert(new_describe('test'))
-    assert(desc:measure(function() end))
+    assert(desc:run_with_timer(function() end))
     ok, err = desc:options({})
     assert.is_false(ok)
-    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or measure()')
+    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or run_with_timer()')
 
     -- test invalid context type
     desc = assert(new_describe('test'))
@@ -186,14 +186,14 @@ function testcase.setup()
     assert(desc:run(function() end))
     ok, err = desc:setup(setup_fn)
     assert.is_false(ok)
-    assert.equal(err, 'must be defined before run() or measure()')
+    assert.equal(err, 'must be defined before run() or run_with_timer()')
 
-    -- test must be defined before measure
+    -- test must be defined before run_with_timer
     desc = assert(new_describe('test'))
-    assert(desc:measure(function() end))
+    assert(desc:run_with_timer(function() end))
     ok, err = desc:setup(setup_fn)
     assert.is_false(ok)
-    assert.equal(err, 'must be defined before run() or measure()')
+    assert.equal(err, 'must be defined before run() or run_with_timer()')
 end
 
 function testcase.setup_once()
@@ -231,14 +231,14 @@ function testcase.setup_once()
     assert(desc:run(function() end))
     ok, err = desc:setup_once(setup_once_fn)
     assert.is_false(ok)
-    assert.equal(err, 'must be defined before run() or measure()')
+    assert.equal(err, 'must be defined before run() or run_with_timer()')
 
-    -- test must be defined before measure
+    -- test must be defined before run_with_timer
     desc = assert(new_describe('test'))
-    assert(desc:measure(function() end))
+    assert(desc:run_with_timer(function() end))
     ok, err = desc:setup_once(setup_once_fn)
     assert.is_false(ok)
-    assert.equal(err, 'must be defined before run() or measure()')
+    assert.equal(err, 'must be defined before run() or run_with_timer()')
 end
 
 function testcase.run()
@@ -264,41 +264,41 @@ function testcase.run()
     assert.is_false(ok)
     assert.equal(err, 'cannot be defined twice')
 
-    -- test cannot define if measure is defined
+    -- test cannot define if run_with_timer is defined
     desc = assert(new_describe('test'))
-    assert(desc:measure(function() end))
+    assert(desc:run_with_timer(function() end))
     ok, err = desc:run(run_fn)
     assert.is_false(ok)
-    assert.equal(err, 'cannot be defined if measure() is defined')
+    assert.equal(err, 'cannot be defined if run_with_timer() is defined')
 end
 
-function testcase.measure()
+function testcase.run_with_timer()
     local desc = assert(new_describe('test'))
-    local measure_fn = function() end
+    local run_with_timer_fn = function() end
 
-    -- test valid measure
-    local ok, err = desc:measure(measure_fn)
+    -- test valid run_with_timer
+    local ok, err = desc:run_with_timer(run_with_timer_fn)
     assert.is_true(ok)
     assert.is_nil(err)
-    assert.equal(desc.spec.measure, measure_fn)
+    assert.equal(desc.spec.run_with_timer, run_with_timer_fn)
 
     -- test invalid argument type
     desc = assert(new_describe('test'))
-    ok, err = desc:measure('not a function')
+    ok, err = desc:run_with_timer('not a function')
     assert.is_false(ok)
     assert.equal(err, 'argument must be a function')
 
     -- test cannot define twice
     desc = assert(new_describe('test'))
-    assert(desc:measure(measure_fn))
-    ok, err = desc:measure(measure_fn)
+    assert(desc:run_with_timer(run_with_timer_fn))
+    ok, err = desc:run_with_timer(run_with_timer_fn)
     assert.is_false(ok)
     assert.equal(err, 'cannot be defined twice')
 
     -- test cannot define if run is defined
     desc = assert(new_describe('test'))
     assert(desc:run(function() end))
-    ok, err = desc:measure(measure_fn)
+    ok, err = desc:run_with_timer(run_with_timer_fn)
     assert.is_false(ok)
     assert.equal(err, 'cannot be defined if run() is defined')
 end
@@ -314,9 +314,9 @@ function testcase.teardown()
     assert.is_nil(err)
     assert.equal(desc.spec.teardown, teardown_fn)
 
-    -- test valid teardown after measure
+    -- test valid teardown after run_with_timer
     desc = assert(new_describe('test'))
-    assert(desc:measure(function() end))
+    assert(desc:run_with_timer(function() end))
     ok, err = desc:teardown(teardown_fn)
     assert.is_true(ok)
     assert.is_nil(err)
@@ -337,11 +337,11 @@ function testcase.teardown()
     assert.is_false(ok)
     assert.equal(err, 'cannot be defined twice')
 
-    -- test must be defined after run or measure
+    -- test must be defined after run or run_with_timer
     desc = assert(new_describe('test'))
     ok, err = desc:teardown(teardown_fn)
     assert.is_false(ok)
-    assert.equal(err, 'must be defined after run() or measure()')
+    assert.equal(err, 'must be defined after run() or run_with_timer()')
 end
 
 function testcase.complete_workflow()
@@ -358,13 +358,13 @@ function testcase.complete_workflow()
     assert.is_function(desc.spec.run)
     assert.is_function(desc.spec.teardown)
     assert.is_nil(desc.spec.setup_once)
-    assert.is_nil(desc.spec.measure)
+    assert.is_nil(desc.spec.run_with_timer)
 
-    -- test workflow with setup_once and measure
+    -- test workflow with setup_once and run_with_timer
     desc = assert(new_describe('test with setup_once', function(i) return 'iteration ' .. i end))
     assert(desc:options({ context = { multiplier = 2 } }))
     assert(desc:setup_once(function() return { data = 'shared' } end))
-    assert(desc:measure(function(_, _, _)
+    assert(desc:run_with_timer(function(_, _, _)
         local start = os.clock()
         -- do work
         local stop = os.clock()
@@ -374,7 +374,7 @@ function testcase.complete_workflow()
     -- verify spec fields
     assert.is_table(desc.spec.options)
     assert.is_function(desc.spec.setup_once)
-    assert.is_function(desc.spec.measure)
+    assert.is_function(desc.spec.run_with_timer)
     assert.is_function(desc.spec.namefn)
     assert.is_nil(desc.spec.setup)
     assert.is_nil(desc.spec.run)
