@@ -1,138 +1,99 @@
 # Measure Registryモジュール設計書
 
-バージョン: 0.1.0  
-日付: 2025-06-18
+バージョン: 0.2.0  
+日付: 2025-06-19
 
 ## 概要
 
-Measure Registryモジュールは、ファイルスコープのベンチマーク仕様を管理し、ソースファイルごとに整理されたすべてのベンチマークのレジストリを維持します。どのベンチマークがどのファイルに属するかを追跡しながら、ベンチマークファイル間の分離を提供します。
+Measure Registryモジュールは、ベンチマーク仕様の明示的な登録を管理し、ソースファイル別に整理されたすべてのベンチマークのレジストリを維持します。仕様を明示的にファイル名と関連付けて登録する、シンプルで明示的な登録モデルを提供します。
 
 ## 目的
 
-このモジュールは以下を行う中央レジストリとして機能します：
-- ファイル固有のベンチマーク仕様の作成と管理
-- ファイル名をベンチマーク仕様にマッピングするレジストリの維持
-- ライフサイクル関数のフック管理の提供
-- 新しいベンチマークdescribeオブジェクトの作成
+このモジュールは、中央レジストリとして以下の機能を提供します：
+- ファイル名とベンチマーク仕様のマッピングを維持
+- 登録された仕様のファイル存在を検証
+- 明示的な登録と取得のAPIを提供
+- レジストリクリア機能によるテストサポート
 
 ## モジュール構造
 
 ```lua
--- モジュール: measure.registry
-local describe = require('measure.describe')
-local getinfo = require('measure.getinfo')
+-- Module: measure.registry
+local type = type
+local format = string.format
+local find = string.find
+local tostring = tostring
+local open = io.open
 
--- すべてのファイル仕様のレジストリ
+-- Registry of all file specifications
 local Registry = {}
 
--- パブリックAPI
+-- Public API
 return {
     get = get,
-    new = new_spec,
+    add = add_spec,
     clear = clear,
 }
 ```
 
-## コアコンポーネント
+## 主要コンポーネント
 
 ### 1. レジストリテーブル
 
-ベンチマークファイル名をその仕様にマッピングするグローバルレジストリ：
+ベンチマークファイル名と仕様をマッピングするグローバルレジストリ：
 
 ```lua
---- @type table<string, measure.registry.spec>
+--- @type table<string, measure.spec>
 local Registry = {}
 ```
 
-### 2. Registry Specクラス
+### 2. ファイル検証
 
-各ベンチマークファイルは独自のspecインスタンスを取得します：
-
-```lua
---- @class measure.registry.spec
---- @field filename string ベンチマークファイルのファイル名
---- @field hooks table<string, function> ベンチマークのフック
---- @field describes table<string, measure.describe> ベンチマークのdescribe
-local Spec = {}
-Spec.__index = Spec
-```
-
-### 3. フック管理
+登録されるすべての仕様は、既存のファイルと関連付けられている必要があります：
 
 ```lua
-function Spec:set_hook(name, fn)
-    if type(name) ~= 'string' then
-        return false, format('name must be a string, got %s', type(name))
-    elseif type(fn) ~= 'function' then
-        return false, format('fn must be a function, got %s', type(fn))
-    elseif not HOOK_NAMES[name] then
-        return false,
-               format('Invalid hook name %q, must be one of: %s', name,
-                      concat(HOOK_NAMES), ', ')
-    end
-
-    local v = self.hooks[name]
-    if type(v) == 'function' then
-        return false, format('Hook %q already exists, it must be unique', name)
-    end
-
-    self.hooks[name] = fn
-    return true
+-- Ensure filename can open as a file
+local file = open(filename, 'r')
+if not file then
+    -- filename is not a valid file
+    return false, format('filename %q must point to an existing file', filename)
 end
+file:close()
 ```
 
-### 4. Describe作成
+### 3. 仕様タイプ検証
+
+measure.specオブジェクトのみが登録可能です：
 
 ```lua
-function Spec:new_describe(name, namefn)
-    -- 新しいdescribeオブジェクトを作成
-    local desc, err = describe(name, namefn)
-    if not desc then
-        return nil, err
-    end
-
-    -- 重複名をチェック
-    if self.describes[name] then
-        return nil, format('name %q already exists, it must be unique', name)
-    end
-
-    -- describeリストとマップに追加
-    local idx = #self.describes + 1
-    self.describes[idx] = desc
-    self.describes[name] = desc
-    return desc
+elseif not find(tostring(spec), '^measure%.spec') then
+    return false, format('spec must be a measure.spec, got %q', tostring(spec))
 end
 ```
 
 ## 主要関数
 
-### new_spec()
+### add_spec()
 
-現在のベンチマークファイルのspecを作成または取得します：
+ファイル名に関連付けられた新しいベンチマーク仕様を登録します：
 
 ```lua
-local function new_spec()
-    -- 呼び出し元からファイルパスを取得
-    local info = getinfo(1, 'source')
-    if not info or not info.source then
-        error("Failed to identify caller")
+local function add_spec(filename, spec)
+    if type(filename) ~= 'string' then
+        return false, format('filename must be a string, got %s', type(filename))
+    elseif not find(tostring(spec), '^measure%.spec') then
+        return false, format('spec must be a measure.spec, got %q', tostring(spec))
     end
 
-    local filename = info.source.pathname
-    local spec = Registry[filename]
-    if spec then
-        return spec
+    -- Ensure filename can open as a file
+    local file = open(filename, 'r')
+    if not file then
+        return false, format('filename %q must point to an existing file', filename)
     end
-
-    -- 新しいspecを作成
-    spec = setmetatable({
-        filename = filename,
-        hooks = {},
-        describes = {},
-    }, Spec)
+    file:close()
 
     Registry[filename] = spec
-    return spec
+    return true
 end
 ```
 
@@ -158,82 +119,83 @@ end
 
 ## レジストリ構造
 
-レジストリは2レベル構造を維持します：
+レジストリはシンプルなマッピング構造を維持します：
 
 ```
 Registry = {
-    "/path/to/benchmark/example_bench.lua" = {
-        filename = "/path/to/benchmark/example_bench.lua",
-        hooks = {
-            before_all = function() ... end,
-            after_each = function() ... end,
-        },
-        describes = {
-            [1] = describe1,
-            [2] = describe2,
-            ["Benchmark Name 1"] = describe1,
-            ["Benchmark Name 2"] = describe2,
-        }
-    },
-    "/path/to/benchmark/another_bench.lua" = { ... }
+    "/path/to/benchmark/example_bench.lua" = spec1,
+    "/path/to/benchmark/another_bench.lua" = spec2,
 }
 ```
+
+各仕様は`measure.spec`オブジェクトで、以下を含みます：
+- `hooks`: ライフサイクルフック（`before_all`、`before_each`、`after_each`、`after_all`）のテーブル
+- `describes`: 番号と名前でインデックス化されたベンチマークdescribeオブジェクトのテーブル
 
 ## 統合ポイント
 
 ### Measureモジュール
-- `new_spec()`を呼び出してファイル固有のspecを取得
-- フックとdescribe管理にspecメソッドを使用
+- `registry.add()`を使用して仕様を明示的に登録
+- `measure.spec`オブジェクトを独立して作成
+- `registry.get()`を使用してすべての登録された仕様にアクセス
 
-### Describeモジュール
-- レジストリはインスタンス作成のためにdescribeモジュールをインポート
-- describeオブジェクトをmeasureモジュールに返す
+### Specモジュール
+- レジストリは`measure.spec`オブジェクトのみが登録されることを検証
+- レジストリは仕様の参照を保存するが、仕様の作成は管理しない
 
-### Getinfoモジュール
-- レジストリは呼び出し元ファイルを特定するために`getinfo(1, 'source')`を使用
-- ファイルスコープの分離のための正確なファイル名検出を提供
+## 明示的登録モデル
 
-## ファイル分離
-
-各ベンチマークファイルは、measureモジュールを要求すると自動的に独自のspecを取得します。ファイル名はコールスタックから決定され、手動設定なしで適切な分離を保証します。
+自動ファイルベース登録とは異なり、このモジュールは明示的な登録を必要とします：
+1. `measure.spec`オブジェクトを作成
+2. `registry.add(filename, spec)`を呼び出して登録
+3. レジストリがファイルの存在と仕様タイプを検証
+4. レジストリが後の取得のために関連付けを保存
 
 ## エラーメッセージ
 
 モジュールは説明的なエラーメッセージを提供します：
-- `Invalid hook name "invalid_hook", must be one of: "before_all", "before_each", "after_each", "after_all"`
-- `fn must be a function, got string`
-- `Hook "before_all" already exists, it must be unique`
-- `name "Test" already exists, it must be unique`
-- `name must be a string, got number`
-- `Failed to identify caller`
+- `filename must be a string, got number`
+- `spec must be a measure.spec, got "string"`
+- `filename "nonexistent.lua" must point to an existing file`
 
 ## 使用フロー
 
-1. ベンチマークファイルがmeasureモジュールを要求
-2. Measureモジュールが`registry.new()`を呼び出す
-3. レジストリが`getinfo(1, 'source')`を使用して呼び出し元ファイルを特定
-4. レジストリがそのファイルのspecを作成/取得
-5. Specがそのファイルのフックとdescribeを管理
-6. レジストリがランナーアクセス用のマッピングを維持
+1. `measure.spec`オブジェクトを作成
+2. 仕様にフックとdescribeを設定
+3. `registry.add(filename, spec)`を呼び出して仕様を登録
+4. レジストリがファイル名と仕様タイプを検証
+5. レジストリがランナーアクセスのために関連付けを保存
+6. `registry.get()`を使用してすべての登録された仕様を取得
 
 ## セキュリティ考慮事項
 
-1. **ファイル名ベースの分離**: 各ファイルが独自の名前空間を取得
-2. **重複防止**: 名前はファイル内で一意である必要がある
-3. **型検証**: すべての入力が保存前に検証される
-4. **クロスファイルアクセスなし**: ファイルは他のファイルのspecにアクセスできない
+1. **ファイル存在検証**: すべてのファイル名は既存のファイルを指す必要がある
+2. **タイプセーフティ**: `measure.spec`オブジェクトのみが登録可能
+3. **入力検証**: 登録前にすべてのパラメータを検証
+4. **明示的制御**: 自動動作なし、すべての登録は明示的
 
 ## 実装例
 
 ```lua
 -- ベンチマークファイル内: example_bench.lua
-local measure = require('measure')
+local registry = require('measure.registry')
+local new_spec = require('measure.spec')
 
--- これにより、レジストリに"example_bench.lua"のspecが作成される
-measure.before_all = function() ... end
+-- 新しい仕様を作成
+local spec = new_spec()
 
--- これにより、example_bench.lua specにdescribeが追加される
-measure.describe('Test 1').run(function() ... end)
+-- 仕様を設定
+spec:set_hook('before_all', function() print('テスト開始') end)
+local desc = spec:new_describe('パフォーマンステスト')
+desc:run(function() 
+    -- ベンチマークコードをここに
+end)
+
+-- 仕様を登録
+local ok, err = registry.add('example_bench.lua', spec)
+if not ok then
+    error('仕様の登録に失敗: ' .. err)
+end
 ```
 
 ## ランナー統合
@@ -245,7 +207,7 @@ local registry = require('measure.registry')
 local all_specs = registry.get()
 
 for filename, spec in pairs(all_specs) do
-    print("Running benchmarks from:", filename)
+    print("ベンチマーク実行中:", filename)
     -- フックとベンチマークを実行
 end
 ```

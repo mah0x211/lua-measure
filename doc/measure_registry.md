@@ -1,26 +1,29 @@
 # Measure Registry Module Design Document
 
-Version: 0.1.0  
-Date: 2025-06-18
+Version: 0.2.0  
+Date: 2025-06-19
 
 ## Overview
 
-The Measure Registry module manages file-scoped benchmark specifications and maintains a registry of all benchmarks organized by their source files. It provides isolation between benchmark files while tracking which benchmarks belong to which files.
+The Measure Registry module manages explicit registration of benchmark specifications and maintains a registry of all benchmarks organized by their source files. It provides a simple, explicit registration model where specs must be explicitly registered with filenames.
 
 ## Purpose
 
 This module serves as the central registry that:
-- Creates and manages file-specific benchmark specifications
 - Maintains a registry mapping filenames to their benchmark specifications
-- Provides hook management for lifecycle functions
-- Creates new benchmark describe objects
+- Validates file existence for registered specs
+- Provides explicit registration and retrieval API
+- Supports testing with registry clearing functionality
 
 ## Module Structure
 
 ```lua
 -- Module: measure.registry
-local describe = require('measure.describe')
-local getinfo = require('measure.getinfo')
+local type = type
+local format = string.format
+local find = string.find
+local tostring = tostring
+local open = io.open
 
 -- Registry of all file specifications
 local Registry = {}
@@ -28,7 +31,7 @@ local Registry = {}
 -- Public API
 return {
     get = get,
-    new = new_spec,
+    add = add_spec,
     clear = clear,
 }
 ```
@@ -40,99 +43,57 @@ return {
 The global registry that maps benchmark filenames to their specifications:
 
 ```lua
---- @type table<string, measure.registry.spec>
+--- @type table<string, measure.spec>
 local Registry = {}
 ```
 
-### 2. Registry Spec Class
+### 2. File Validation
 
-Each benchmark file gets its own spec instance:
-
-```lua
---- @class measure.registry.spec
---- @field filename string The filename of the benchmark file
---- @field hooks table<string, function> The hooks for the benchmark
---- @field describes table<string, measure.describe> The describes for the benchmark
-local Spec = {}
-Spec.__index = Spec
-```
-
-### 3. Hook Management
+All registered specs must be associated with existing files:
 
 ```lua
-function Spec:set_hook(name, fn)
-    if type(name) ~= 'string' then
-        return false, format('name must be a string, got %s', type(name))
-    elseif type(fn) ~= 'function' then
-        return false, format('fn must be a function, got %s', type(fn))
-    elseif not HOOK_NAMES[name] then
-        return false,
-               format('Invalid hook name %q, must be one of: %s', name,
-                      concat(HOOK_NAMES), ', ')
-    end
-
-    local v = self.hooks[name]
-    if type(v) == 'function' then
-        return false, format('Hook %q already exists, it must be unique', name)
-    end
-
-    self.hooks[name] = fn
-    return true
+-- Ensure filename can open as a file
+local file = io.open(filename, 'r')
+if not file then
+    -- filename is not a valid file
+    return false, format('filename %q must point to an existing file', filename)
 end
+file:close()
 ```
 
-### 4. Describe Creation
+### 3. Spec Type Validation
+
+Only measure.spec objects can be registered:
 
 ```lua
-function Spec:new_describe(name, namefn)
-    -- Create new describe object
-    local desc, err = describe(name, namefn)
-    if not desc then
-        return nil, err
-    end
-
-    -- Check for duplicate names
-    if self.describes[name] then
-        return nil, format('name %q already exists, it must be unique', name)
-    end
-
-    -- Add to describes list and map
-    local idx = #self.describes + 1
-    self.describes[idx] = desc
-    self.describes[name] = desc
-    return desc
+elseif not find(tostring(spec), '^measure%.spec') then
+    return false, format('spec must be a measure.spec, got %q', tostring(spec))
 end
 ```
 
 ## Key Functions
 
-### new_spec()
+### add_spec()
 
-Creates or retrieves a spec for the current benchmark file:
+Registers a new benchmark specification associated with a filename:
 
 ```lua
-local function new_spec()
-    -- Get the file path from the caller
-    local info = getinfo(1, 'source')
-    if not info or not info.source then
-        error("Failed to identify caller")
+local function add_spec(filename, spec)
+    if type(filename) ~= 'string' then
+        return false, format('filename must be a string, got %s', type(filename))
+    elseif not find(tostring(spec), '^measure%.spec') then
+        return false, format('spec must be a measure.spec, got %q', tostring(spec))
     end
 
-    local filename = info.source.pathname
-    local spec = Registry[filename]
-    if spec then
-        return spec
+    -- Ensure filename can open as a file
+    local file = open(filename, 'r')
+    if not file then
+        return false, format('filename %q must point to an existing file', filename)
     end
-
-    -- Create new spec
-    spec = setmetatable({
-        filename = filename,
-        hooks = {},
-        describes = {},
-    }, Spec)
+    file:close()
 
     Registry[filename] = spec
-    return spec
+    return true
 end
 ```
 
@@ -158,82 +119,83 @@ end
 
 ## Registry Structure
 
-The registry maintains a two-level structure:
+The registry maintains a simple mapping structure:
 
 ```
 Registry = {
-    "/path/to/benchmark/example_bench.lua" = {
-        filename = "/path/to/benchmark/example_bench.lua",
-        hooks = {
-            before_all = function() ... end,
-            after_each = function() ... end,
-        },
-        describes = {
-            [1] = describe1,
-            [2] = describe2,
-            ["Benchmark Name 1"] = describe1,
-            ["Benchmark Name 2"] = describe2,
-        }
-    },
-    "/path/to/benchmark/another_bench.lua" = { ... }
+    "/path/to/benchmark/example_bench.lua" = spec1,
+    "/path/to/benchmark/another_bench.lua" = spec2,
 }
 ```
+
+Where each spec is a `measure.spec` object containing:
+- `hooks`: Table of lifecycle hooks (`before_all`, `before_each`, `after_each`, `after_all`)
+- `describes`: Table of benchmark describe objects indexed by number and name
 
 ## Integration Points
 
 ### Measure Module
-- Calls `new_spec()` to get file-specific spec
-- Uses spec methods for hook and describe management
+- Uses `registry.add()` to register specs explicitly
+- Creates `measure.spec` objects independently
+- Uses `registry.get()` to access all registered specs
 
-### Describe Module
-- Registry imports describe module to create instances
-- Passes describe objects back to measure module
+### Spec Module
+- Registry validates that only `measure.spec` objects are registered
+- Registry stores spec references but doesn't manage spec creation
 
-### Getinfo Module
-- Registry uses `getinfo(1, 'source')` to identify the caller file
-- Provides accurate filename detection for file-scoped isolation
+## Explicit Registration Model
 
-## File Isolation
-
-Each benchmark file automatically gets its own spec when it requires the measure module. The filename is determined from the call stack, ensuring proper isolation without manual configuration.
+Unlike automatic file-based registration, this module requires explicit registration:
+1. Create a `measure.spec` object
+2. Call `registry.add(filename, spec)` to register it
+3. Registry validates file existence and spec type
+4. Registry stores the association for later retrieval
 
 ## Error Messages
 
 The module provides descriptive error messages:
-- `Invalid hook name "invalid_hook", must be one of: "before_all", "before_each", "after_each", "after_all"`
-- `fn must be a function, got string`
-- `Hook "before_all" already exists, it must be unique`
-- `name "Test" already exists, it must be unique`
-- `name must be a string, got number`
-- `Failed to identify caller`
+- `filename must be a string, got number`
+- `spec must be a measure.spec, got "string"`
+- `filename "nonexistent.lua" must point to an existing file`
 
 ## Usage Flow
 
-1. Benchmark file requires measure module
-2. Measure module calls `registry.new()` 
-3. Registry uses `getinfo(1, 'source')` to identify the caller file
-4. Registry creates/retrieves spec for that file
-5. Spec manages hooks and describes for that file
-6. Registry maintains mapping for runner access
+1. Create a `measure.spec` object
+2. Set hooks and describes on the spec
+3. Call `registry.add(filename, spec)` to register the spec
+4. Registry validates filename and spec type
+5. Registry stores the association for runner access
+6. Use `registry.get()` to retrieve all registered specs
 
 ## Security Considerations
 
-1. **Filename-based Isolation**: Each file gets its own namespace
-2. **Duplicate Prevention**: Names must be unique within a file
-3. **Type Validation**: All inputs validated before storage
-4. **No Cross-file Access**: Files cannot access other files' specs
+1. **File Existence Validation**: All filenames must point to existing files
+2. **Type Safety**: Only `measure.spec` objects can be registered
+3. **Input Validation**: All parameters validated before registration
+4. **Explicit Control**: No automatic behavior, all registration is explicit
 
 ## Example Implementation
 
 ```lua
 -- In benchmark file: example_bench.lua
-local measure = require('measure')
+local registry = require('measure.registry')
+local new_spec = require('measure.spec')
 
--- This creates a spec for "example_bench.lua" in the registry
-measure.before_all = function() ... end
+-- Create a new spec
+local spec = new_spec()
 
--- This adds a describe to the example_bench.lua spec
-measure.describe('Test 1').run(function() ... end)
+-- Configure the spec
+spec:set_hook('before_all', function() print('Starting tests') end)
+local desc = spec:new_describe('Performance Test')
+desc:run(function() 
+    -- benchmark code here
+end)
+
+-- Register the spec
+local ok, err = registry.add('example_bench.lua', spec)
+if not ok then
+    error('Failed to register spec: ' .. err)
+end
 ```
 
 ## Runner Integration
