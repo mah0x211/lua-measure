@@ -7,4 +7,5 @@ modules = {
     ["measure.getinfo"] = "lib/getinfo.lua",
     ["measure.metatable"] = "lib/metatable.lua",
     ["measure.registry"] = "lib/registry.lua",
+    ["measure.spec"] = "lib/spec.lua",
 }
