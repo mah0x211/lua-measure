@@ -9,7 +9,8 @@ LUASRCS = $(shell find lib -name '*.lua')
 # Install directories
 INST_LUALIBDIR = $(INST_LUADIR)/$(PACKAGE_NAME)
 INST_CLIBDIR = $(INST_LIBDIR)/$(PACKAGE_NAME)
-LUALIBS = $(patsubst lib/%,$(INST_LUALIBDIR)/%,$(LUASRCS))
+LUALIBS = $(patsubst lib/%,$(INST_LUALIBDIR)/%,$(filter-out lib/$(PACKAGE_NAME).lua,$(LUASRCS)))
+MAINLIB = $(if $(wildcard lib/$(PACKAGE_NAME).lua),$(INST_LUADIR)/$(PACKAGE_NAME).lua)
 
 # Coverage flags
 ifdef MEASURE_COVERAGE
@@ -29,13 +30,26 @@ clean:
 %.$(LIB_EXTENSION): %.o
 	$(CC) -o $@ $^ $(LDFLAGS) $(PLATFORM_LDFLAGS) $(COVFLAGS)
 
-$(INST_LUALIBDIR)/%: lib/%
+# Common rule for installing Lua files
+define INSTALL_LUA_FILE
 	@mkdir -p $(@D)
 	@echo "Installing $< -> $@"
 	@install $< $@
+endef
 
-install: $(LUALIBS)
+$(INST_LUALIBDIR)/%: lib/%
+	$(INSTALL_LUA_FILE)
+
+ifneq ($(MAINLIB),)
+$(MAINLIB): lib/$(PACKAGE_NAME).lua
+	$(INSTALL_LUA_FILE)
+endif
+
+install: $(LUALIBS) $(MAINLIB)
 	@echo "Installing Lua libraries to $(INST_LUALIBDIR)..."
+ifneq ($(MAINLIB),)
+	@echo "Installing main library to $(INST_LUADIR)..."
+endif
 ifneq ($(strip $(SRCS)),)
 	@echo "Installing C libraries to $(INST_CLIBDIR)..."
 	@install -d $(INST_CLIBDIR)
