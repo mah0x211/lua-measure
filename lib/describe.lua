@@ -45,11 +45,9 @@ local floor = math.floor
 
 --- @class measure.describe
 --- @field spec measure.describe.spec The benchmark specification
-local Describe = {}
-Describe.__index = Describe
-Describe.__tostring = function(self)
+local Describe = require('measure.metatable')(function(self)
     return format('measure.describe %q', self.spec.name)
-end
+end)
 
 --- Validate options table values
 --- @param opts table The options table to validate
