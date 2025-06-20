@@ -37,22 +37,22 @@ function testcase.add_spec_valid()
     assert.equal(reg[test_file], spec)
 end
 
-function testcase.add_spec_invalid_filename()
+function testcase.add_spec_invalid_key()
     registry.clear()
     local spec = new_spec()
 
-    -- Test with non-string filename
+    -- Test with non-string key
     local ok, err = registry.add(123, spec)
     assert.is_false(ok)
-    assert.equal(err, 'filename must be a string, got number')
+    assert.equal(err, 'key must be a string, got number')
 
     ok, err = registry.add(true, spec)
     assert.is_false(ok)
-    assert.equal(err, 'filename must be a string, got boolean')
+    assert.equal(err, 'key must be a string, got boolean')
 
     ok, err = registry.add({}, spec)
     assert.is_false(ok)
-    assert.equal(err, 'filename must be a string, got table')
+    assert.equal(err, 'key must be a string, got table')
 end
 
 function testcase.add_spec_invalid_spec()
@@ -76,10 +76,14 @@ function testcase.add_spec_nonexistent_file()
     registry.clear()
     local spec = new_spec()
 
-    -- Test with non-existent file
+    -- Test with non-existent file (now allowed)
     local ok, err = registry.add('nonexistent_file.lua', spec)
-    assert.is_false(ok)
-    assert.match(err, 'filename .* must point to an existing file', false)
+    assert.is_true(ok)
+    assert.is_nil(err)
+
+    -- Verify it was added
+    local retrieved = registry.get('nonexistent_file.lua')
+    assert.equal(retrieved, spec)
 end
 
 function testcase.get_empty_registry()
@@ -117,8 +121,8 @@ function testcase.get_populated_registry()
 
     -- Count entries
     local count = 0
-    for filename, spec in pairs(reg) do
-        assert.is_string(filename)
+    for key, spec in pairs(reg) do
+        assert.is_string(key)
         assert.is_table(spec)
         assert.match(tostring(spec), '^measure%.spec', false)
         count = count + 1
@@ -241,21 +245,21 @@ function testcase.registry_isolation()
     assert.equal(retrieved_spec2.describes['Spec2 Test'].spec.name, 'Spec2 Test')
 end
 
-function testcase.get_specific_filename()
+function testcase.get_specific_key()
     registry.clear()
 
     -- Add multiple specs
     local spec1 = new_spec()
     local spec2 = new_spec()
 
-    local file1 = get_test_file_path('registry_test.lua')
-    local file2 = get_test_file_path('spec_test.lua')
-    registry.add(file1, spec1)
-    registry.add(file2, spec2)
+    local key1 = get_test_file_path('registry_test.lua')
+    local key2 = get_test_file_path('spec_test.lua')
+    registry.add(key1, spec1)
+    registry.add(key2, spec2)
 
-    -- Get specific spec by filename
-    local retrieved_spec1 = registry.get(file1)
-    local retrieved_spec2 = registry.get(file2)
+    -- Get specific spec by key
+    local retrieved_spec1 = registry.get(key1)
+    local retrieved_spec2 = registry.get(key2)
 
     assert.equal(retrieved_spec1, spec1)
     assert.equal(retrieved_spec2, spec2)
@@ -267,13 +271,13 @@ function testcase.get_with_nil_parameter()
 
     -- Add a spec
     local spec = new_spec()
-    local file = get_test_file_path('registry_test.lua')
-    registry.add(file, spec)
+    local key = get_test_file_path('registry_test.lua')
+    registry.add(key, spec)
 
     -- Explicitly pass nil to get all specs
     local reg = registry.get(nil)
     assert.is_table(reg)
-    assert.equal(reg[file], spec)
+    assert.equal(reg[key], spec)
 
     -- Count should be 1
     local count = 0
@@ -289,18 +293,18 @@ function testcase.get_with_invalid_parameter()
     -- Test with invalid parameter types
     assert.throws(function()
         registry.get(123)
-    end, 'filename must be a string or nil')
+    end, 'key must be a string or nil')
 
     assert.throws(function()
         registry.get(true)
-    end, 'filename must be a string or nil')
+    end, 'key must be a string or nil')
 
     assert.throws(function()
         registry.get({})
-    end, 'filename must be a string or nil')
+    end, 'key must be a string or nil')
 
     assert.throws(function()
         registry.get(function()
         end)
-    end, 'filename must be a string or nil')
+    end, 'key must be a string or nil')
 end
