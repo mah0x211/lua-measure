@@ -32,10 +32,10 @@ function BenchmarkDescribe:options(opts)
         return false, 'argument must be a table'
     elseif spec.options then
         return false, 'options cannot be defined twice'
-    elseif spec.setup or spec.setup_once or spec.run or spec.measure then
+    elseif spec.setup or spec.setup_once or spec.run or spec.run_with_timer then
 
         return false,
-               'options must be defined before setup(), setup_once(), run() or measure()'
+               'options must be defined before setup(), setup_once(), run() or run_with_timer()'
     end
 
     -- Validate options
@@ -71,8 +71,8 @@ function BenchmarkDescribe:setup(fn)
         return false, 'cannot be defined twice'
     elseif spec.setup_once then
         return false, 'cannot be defined if setup_once() is defined'
-    elseif spec.run or spec.measure then
-        return false, 'must be defined before run() or measure()'
+    elseif spec.run or spec.run_with_timer then
+        return false, 'must be defined before run() or run_with_timer()'
     end
 
     spec.setup = fn
@@ -87,8 +87,8 @@ function BenchmarkDescribe:setup_once(fn)
         return false, 'cannot be defined twice'
     elseif spec.setup then
         return false, 'cannot be defined if setup() is defined'
-    elseif spec.run or spec.measure then
-        return false, 'must be defined before run() or measure()'
+    elseif spec.run or spec.run_with_timer then
+        return false, 'must be defined before run() or run_with_timer()'
     end
 
     spec.setup_once = fn
@@ -101,25 +101,25 @@ function BenchmarkDescribe:run(fn)
         return false, 'argument must be a function'
     elseif spec.run then
         return false, 'cannot be defined twice'
-    elseif spec.measure then
-        return false, 'cannot be defined if measure() is defined'
+    elseif spec.run_with_timer then
+        return false, 'cannot be defined if run_with_timer() is defined'
     end
 
     spec.run = fn
     return true
 end
 
-function BenchmarkDescribe:measure(fn)
+function BenchmarkDescribe:run_with_timer(fn)
     local spec = self.spec
     if type(fn) ~= 'function' then
         return false, 'argument must be a function'
-    elseif spec.measure then
+    elseif spec.run_with_timer then
         return false, 'cannot be defined twice'
     elseif spec.run then
         return false, 'cannot be defined if run() is defined'
     end
 
-    spec.measure = fn
+    spec.run_with_timer = fn
     return true
 end
 
@@ -129,8 +129,8 @@ function BenchmarkDescribe:teardown(fn)
         return false, 'argument must be a function'
     elseif spec.teardown then
         return false, 'cannot be defined twice'
-    elseif not spec.run and not spec.measure then
-        return false, 'must be defined after run() or measure()'
+    elseif not spec.run and not spec.run_with_timer then
+        return false, 'must be defined after run() or run_with_timer()'
     end
 
     spec.teardown = fn
@@ -476,11 +476,11 @@ end).setup_once(function(ctx)
 end) --
 --
 -- NOTE:
---  You must be defined either run or measure function, but not both.
+--  You must be defined either run or run_with_timer function, but not both.
 --
 .run(function(...)
     -- This code is executed for the benchmark run
-end).measure(function(m, ...)
+end).run_with_timer(function(m, ...)
     -- This code is executed for measuring the benchmark
     -- `m` is the measurement object
     -- You can use `m:start()` to start measuring time

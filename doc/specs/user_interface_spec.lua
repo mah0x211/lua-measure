@@ -111,16 +111,16 @@ end).options({
 --
 -- NOTE:
 --  You can define either setup or setup_once, but not both. And, it must
---       be defined before the run or measure function if you want to use it.
+--       be defined before the run or run_with_timer function if you want to use it.
 --
---  The returned values from these functions are passed to the run or measure
+--  The returned values from these functions are passed to the run or run_with_timer
 --  function.
 --  If you defined setup_once, it will be executed once before the benchmark
 --  run, and the returned value will be cached.
 --
 -- @param i number The repeat count, it indicates the current iterations.
 -- @param ctx any The context object, it contains the context option.
--- @return ... any The value to be passed to the run or measure function.
+-- @return ... any The value to be passed to the run or run_with_timer function.
 .setup(function(i, ctx)
     return 'value'
 end).setup_once(function(ctx)
@@ -128,11 +128,11 @@ end).setup_once(function(ctx)
 end) --
 --
 -- NOTE:
---  You must be defined either run or measure function, but not both.
+--  You must be defined either run or run_with_timer function, but not both.
 --
 .run(function(...)
     -- This code is executed for the benchmark run
-end).measure(function(m, ...)
+end).run_with_timer(function(m, ...)
     -- This code is executed for measuring the benchmark
     -- `m` is the measurement object
     -- You can use `m:start()` to start measuring time
