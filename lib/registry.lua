@@ -44,6 +44,10 @@ local function add_spec(filename, spec)
     elseif not find(tostring(spec), '^measure%.spec') then
         return false,
                format('spec must be a measure.spec, got %q', tostring(spec))
+    elseif Registry[filename] then
+        -- filename already exists in the registry
+        return false,
+               format('filename %q already exists in the registry', filename)
     end
 
     -- Ensure filename can open as a file
@@ -59,10 +63,16 @@ local function add_spec(filename, spec)
     return true
 end
 
---- Get the entire registry
---- @return table<string, measure.spec> registry All registered specs
-local function get()
-    return Registry
+--- Get the benchmark specification for a given filename or all specs if nil
+--- @param filename string|nil The filename to retrieve spec for, or nil for all
+--- @return measure.spec|table<string, measure.spec>
+local function get(filename)
+    if filename == nil then
+        return Registry
+    elseif type(filename) == 'string' then
+        return Registry[filename]
+    end
+    error(format('filename must be a string or nil, got %s', type(filename)), 2)
 end
 
 --- Clear the registry.
