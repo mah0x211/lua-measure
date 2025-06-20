@@ -24,6 +24,7 @@ local concat = table.concat
 local sub = string.sub
 local find = string.find
 
+--- Normalize a file path by resolving '.' and '..' segments.
 --- @param pathname string
 --- @return string normalized_path
 local function realpath(pathname)
