@@ -26,12 +26,15 @@ local debug_getinfo = debug.getinfo
 local type = type
 local format = string.format
 local match = string.match
-local sub = string.sub
+local gsub = string.gsub
 local lower = string.lower
 local open = io.open
 local error = error
 local concat = table.concat
-local popen = io.popen
+local realpath = require('measure.realpath')
+
+-- Get current working directory
+local PWD = assert(io.popen('pwd'):read('*l'))
 
 --- Read source code from file
 --- @param pathname string The file path
@@ -46,17 +49,9 @@ local function read_source(pathname, head, tail)
            'tail must be a non-negative integer')
     assert(head <= tail, 'head must be less than or equal to tail')
 
-    local filepath = pathname
-    -- If pathname does not start with '/', prepend current working directory
-    -- This allows reading files relative to the current directory
-    if sub(pathname, 1, 1) ~= '/' then
-        filepath = assert(popen('pwd'):read('*l')) .. '/' ..
-                       (match(pathname, '/(.*)') or pathname)
-    end
-
-    local file, err = open(filepath, 'r')
+    local file, err = open(pathname, 'r')
     if not file then
-        error(format('failed to open file %q: %s', filepath, err))
+        error(format('failed to open file %q: %s', pathname, err))
     end
 
     -- collect lines from the file
@@ -86,36 +81,43 @@ end
 --- @return string name The filename
 --- @return string pathname The full pathname
 local function extract_filename(source)
-    -- Remove @ prefix if present
-    local name = source
-    if sub(source, 1, 1) == '@' then
-        source = sub(source, 2)
-        -- Extract filename from path
-        name = match(source, '([^/\\]+)$') or source
-    end
+    -- get basename from source
+    local name = match(source, '([^/\\]+)$')
+    -- replace @ prefix to PWD
+    local pathname = realpath(gsub(source, '^@', PWD .. '/'))
+    return name, pathname
+end
 
-    return name, source
+--- Get structured file information
+--- @param info table The debug information table
+--- @return table file The structured file information
+local function getinfo_file(info)
+    -- Extract filename and pathname from source
+    local name, pathname = extract_filename(info.source)
+    return {
+        source = info.source,
+        name = name,
+        pathname = pathname,
+        basedir = PWD,
+    }
 end
 
 --- Get structured source information
 --- @param info table The debug information table
 --- @return table source The structured source information
 local function getinfo_source(info)
-    local name, pathname = extract_filename(info.source)
-    local code
-    if lower(info.what) == 'lua' then
-        -- If the source is Lua code, read the source code from the file
-        code = read_source(pathname, info.linedefined, info.lastlinedefined)
-    end
-
-    return {
-        name = name,
-        pathname = pathname,
+    local src = {
         line_head = info.linedefined,
         line_tail = info.lastlinedefined,
         line_current = info.currentline,
-        code = code,
     }
+    if lower(info.what) == 'lua' then
+        local file = getinfo_file(info)
+        -- If the source is Lua code, read the source code from the file
+        src.code = read_source(file.pathname, info.linedefined,
+                               info.lastlinedefined)
+    end
+    return src
 end
 
 --- Get structured function information
@@ -141,6 +143,7 @@ end
 local FIELD_HANDLERS = {}
 for k, f in pairs({
     name = getinfo_name,
+    file = getinfo_file,
     source = getinfo_source,
     ['function'] = getinfo_func,
 }) do
