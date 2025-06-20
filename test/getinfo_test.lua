@@ -10,10 +10,6 @@ function testcase.getinfo_with_source_field()
     local info = getinfo(0, 'source')
     assert.is_table(info)
     assert.is_table(info.source)
-    assert.is_string(info.source.name)
-    assert.equal(info.source.name, 'getinfo_test.lua')
-    assert.is_string(info.source.pathname)
-    assert.re_match(info.source.pathname, 'getinfo_test\\.lua$')
     assert.is_number(info.source.line_head)
     assert.is_number(info.source.line_tail)
     assert.is_number(info.source.line_current)
@@ -52,6 +48,20 @@ function testcase.getinfo_with_function_field()
     -- In Lua 5.1, the type might be "tail" instead of "Lua"
     assert.re_match(info['function'].type, '^(Lua|tail)$')
     assert.is_number(info['function'].nups)
+end
+
+function testcase.getinfo_with_file_field()
+    -- Test getting file information
+    local info = getinfo(0, 'file')
+    assert.is_table(info)
+    assert.is_table(info.file)
+    assert.is_string(info.file.name)
+    assert.equal(info.file.name, 'getinfo_test.lua')
+    assert.is_string(info.file.pathname)
+    assert.re_match(info.file.pathname, 'getinfo_test\\.lua$')
+    -- Test new basedir field
+    assert.is_string(info.file.basedir)
+    assert.is_string(info.file.source)
 end
 
 function testcase.getinfo_with_different_levels()
@@ -119,10 +129,6 @@ function testcase.getinfo_with_unknown_field()
     end, 'field #2 must be one of')
 
     assert.throws(function()
-        getinfo(0, 'file')
-    end, 'field #2 must be one of')
-
-    assert.throws(function()
         getinfo(0, 'line')
     end, 'field #2 must be one of')
 
@@ -155,8 +161,6 @@ function testcase.getinfo_from_string_code()
     local info = func(getinfo)
     assert.is_table(info)
     assert.is_table(info.source)
-    -- The pathname will be the code string itself
-    assert.is_string(info.source.pathname)
     -- For string-loaded code, code contains the entire string
     if info.source.code then
         assert.is_string(info.source.code)
@@ -188,25 +192,27 @@ end
 
 function testcase.getinfo_multiple_fields()
     -- Test with multiple fields (should support multiple arguments)
-    local info = getinfo(0, 'source', 'name', 'function')
+    local info = getinfo(0, 'source', 'name', 'function', 'file')
     assert.is_table(info)
     assert.is_table(info.source)
     assert.is_table(info.name)
     assert.is_table(info['function'])
+    assert.is_table(info.file)
 end
 
 function testcase.getinfo_without_level()
     -- Test calling without level parameter (defaults to caller)
     local function test_func()
-        return getinfo('source')
+        return getinfo('source', 'file')
     end
 
     local info = test_func()
     assert.is_table(info)
     assert.is_table(info.source)
+    assert.is_table(info.file)
     -- In some Lua versions, tail calls can affect source names
-    if info.source.name ~= '=(tail call)' then
-        assert.equal(info.source.name, 'getinfo_test.lua')
+    if info.file.name ~= '=(tail call)' then
+        assert.equal(info.file.name, 'getinfo_test.lua')
     end
 end
 
@@ -315,7 +321,6 @@ function testcase.getinfo_file_open_error()
     -- The code should be nil since the file doesn't exist
     -- But it might contain the string code itself
     -- Let's just verify the structure is correct
-    assert.is_string(info.source.pathname)
 end
 
 function testcase.getinfo_no_source_code_found()
