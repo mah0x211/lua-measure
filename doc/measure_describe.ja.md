@@ -1,7 +1,7 @@
 # Measure Describeモジュール設計書
 
-バージョン: 0.2.0  
-日付: 2025-06-18
+バージョン: 0.3.0  
+日付: 2025-06-19
 
 ## 概要
 
@@ -60,7 +60,7 @@ end
 --- @field setup function|nil ベンチマークのsetup関数
 --- @field setup_once function|nil ベンチマークのsetup_once関数
 --- @field run function|nil ベンチマークのrun関数
---- @field measure function|nil ベンチマークのmeasure関数
+--- @field run_with_timer function|nil タイマー付きでベンチマークする関数
 --- @field teardown function|nil ベンチマークのteardown関数
 ```
 
@@ -77,9 +77,9 @@ function Describe:options(opts)
         return false, 'argument must be a table'
     elseif spec.options then
         return false, 'options cannot be defined twice'
-    elseif spec.setup or spec.setup_once or spec.run or spec.measure then
+    elseif spec.setup or spec.setup_once or spec.run or spec.run_with_timer then
         return false, 
-               'options must be defined before setup(), setup_once(), run() or measure()'
+               'options must be defined before setup(), setup_once(), run() or run_with_timer()'
     end
     
     -- オプションを検証
@@ -113,8 +113,8 @@ function Describe:setup(fn)
         return false, 'cannot be defined twice'
     elseif spec.setup_once then
         return false, 'cannot be defined if setup_once() is defined'
-    elseif spec.run or spec.measure then
-        return false, 'must be defined before run() or measure()'
+    elseif spec.run or spec.run_with_timer then
+        return false, 'must be defined before run() or run_with_timer()'
     end
     
     spec.setup = fn
@@ -126,7 +126,7 @@ function Describe:setup_once(fn)
 end
 ```
 
-### run() / measure()
+### run() / run_with_timer()
 
 相互排他性を持つベンチマーク実行を定義：
 
@@ -137,11 +137,25 @@ function Describe:run(fn)
         return false, 'argument must be a function'
     elseif spec.run then
         return false, 'cannot be defined twice'
-    elseif spec.measure then
-        return false, 'cannot be defined if measure() is defined'
+    elseif spec.run_with_timer then
+        return false, 'cannot be defined if run_with_timer() is defined'
     end
     
     spec.run = fn
+    return true
+end
+
+function Describe:run_with_timer(fn)
+    local spec = self.spec
+    if type(fn) ~= 'function' then
+        return false, 'argument must be a function'
+    elseif spec.run_with_timer then
+        return false, 'cannot be defined twice'
+    elseif spec.run then
+        return false, 'cannot be defined if run() is defined'
+    end
+    
+    spec.run_with_timer = fn
     return true
 end
 ```
@@ -157,8 +171,8 @@ function Describe:teardown(fn)
         return false, 'argument must be a function'
     elseif spec.teardown then
         return false, 'cannot be defined twice'
-    elseif not spec.run and not spec.measure then
-        return false, 'must be defined after run() or measure()'
+    elseif not spec.run and not spec.run_with_timer then
+        return false, 'must be defined after run() or run_with_timer()'
     end
     
     spec.teardown = fn
@@ -190,19 +204,19 @@ end
 
 ### メソッド順序制約
 
-1. `options()`は`setup()`、`setup_once()`、`run()`、`measure()`より前に呼び出す必要がある
-2. `setup()`または`setup_once()`は`run()`または`measure()`より前に呼び出す必要がある
-3. `teardown()`は`run()`または`measure()`より後に呼び出す必要がある
+1. `options()`は`setup()`、`setup_once()`、`run()`、`run_with_timer()`より前に呼び出す必要がある
+2. `setup()`または`setup_once()`は`run()`または`run_with_timer()`より前に呼び出す必要がある
+3. `teardown()`は`run()`または`run_with_timer()`より後に呼び出す必要がある
 
 ### 相互排他性
 
 1. `setup()`と`setup_once()`の両方を定義できない
-2. `run()`と`measure()`の両方を定義できない
+2. `run()`と`run_with_timer()`の両方を定義できない
 3. どのメソッドも2回呼び出せない
 
 ### 必須メソッド
 
-有効なベンチマークには、`run()`または`measure()`の少なくとも1つを定義する必要があります。
+有効なベンチマークには、`run()`または`run_with_timer()`の少なくとも1つを定義する必要があります。
 
 ## エラー処理
 

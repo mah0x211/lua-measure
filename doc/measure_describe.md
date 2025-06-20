@@ -1,7 +1,7 @@
 # Measure Describe Module Design Document
 
-Version: 0.2.0  
-Date: 2025-06-18
+Version: 0.3.0  
+Date: 2025-06-19
 
 ## Overview
 
@@ -66,7 +66,7 @@ end
 --- @field setup function|nil Setup function for each iteration
 --- @field setup_once function|nil Setup function that runs once before all iterations
 --- @field run function|nil The function to benchmark
---- @field measure function|nil Custom measure function for timing
+--- @field run_with_timer function|nil function to benchmark with timer
 --- @field teardown function|nil Teardown function for cleanup after each iteration
 ```
 
@@ -83,9 +83,9 @@ function Describe:options(opts)
         return false, 'argument must be a table'
     elseif spec.options then
         return false, 'options cannot be defined twice'
-    elseif spec.setup or spec.setup_once or spec.run or spec.measure then
+    elseif spec.setup or spec.setup_once or spec.run or spec.run_with_timer then
         return false,
-               'options must be defined before setup(), setup_once(), run() or measure()'
+               'options must be defined before setup(), setup_once(), run() or run_with_timer()'
     end
     
     -- Validate options using validate_options function
@@ -161,8 +161,8 @@ function Describe:setup(fn)
         return false, 'cannot be defined twice'
     elseif spec.setup_once then
         return false, 'cannot be defined if setup_once() is defined'
-    elseif spec.run or spec.measure then
-        return false, 'must be defined before run() or measure()'
+    elseif spec.run or spec.run_with_timer then
+        return false, 'must be defined before run() or run_with_timer()'
     end
     
     spec.setup = fn
@@ -177,8 +177,8 @@ function Describe:setup_once(fn)
         return false, 'cannot be defined twice'
     elseif spec.setup then
         return false, 'cannot be defined if setup() is defined'
-    elseif spec.run or spec.measure then
-        return false, 'must be defined before run() or measure()'
+    elseif spec.run or spec.run_with_timer then
+        return false, 'must be defined before run() or run_with_timer()'
     end
     
     spec.setup_once = fn
@@ -186,7 +186,7 @@ function Describe:setup_once(fn)
 end
 ```
 
-### run() / measure()
+### run() / run_with_timer()
 
 Defines benchmark execution with mutual exclusivity:
 
@@ -197,25 +197,25 @@ function Describe:run(fn)
         return false, 'argument must be a function'
     elseif spec.run then
         return false, 'cannot be defined twice'
-    elseif spec.measure then
-        return false, 'cannot be defined if measure() is defined'
+    elseif spec.run_with_timer then
+        return false, 'cannot be defined if run_with_timer() is defined'
     end
     
     spec.run = fn
     return true
 end
 
-function Describe:measure(fn)
+function Describe:run_with_timer(fn)
     local spec = self.spec
     if type(fn) ~= 'function' then
         return false, 'argument must be a function'
-    elseif spec.measure then
+    elseif spec.run_with_timer then
         return false, 'cannot be defined twice'
     elseif spec.run then
         return false, 'cannot be defined if run() is defined'
     end
     
-    spec.measure = fn
+    spec.run_with_timer = fn
     return true
 end
 ```
@@ -231,8 +231,8 @@ function Describe:teardown(fn)
         return false, 'argument must be a function'
     elseif spec.teardown then
         return false, 'cannot be defined twice'
-    elseif not spec.run and not spec.measure then
-        return false, 'must be defined after run() or measure()'
+    elseif not spec.run and not spec.run_with_timer then
+        return false, 'must be defined after run() or run_with_timer()'
     end
     
     spec.teardown = fn
@@ -264,19 +264,19 @@ end
 
 ### Method Order Constraints
 
-1. `options()` must be called before `setup()`, `setup_once()`, `run()`, or `measure()`
-2. `setup()` or `setup_once()` must be called before `run()` or `measure()`
-3. `teardown()` must be called after `run()` or `measure()`
+1. `options()` must be called before `setup()`, `setup_once()`, `run()`, or `run_with_timer()`
+2. `setup()` or `setup_once()` must be called before `run()` or `run_with_timer()`
+3. `teardown()` must be called after `run()` or `run_with_timer()`
 
 ### Mutual Exclusivity
 
 1. Cannot define both `setup()` and `setup_once()`
-2. Cannot define both `run()` and `measure()`
+2. Cannot define both `run()` and `run_with_timer()`
 3. Cannot call any method twice
 
 ### Required Methods
 
-At least one of `run()` or `measure()` must be defined for a valid benchmark.
+At least one of `run()` or `run_with_timer()` must be defined for a valid benchmark.
 
 ## Error Handling
 
