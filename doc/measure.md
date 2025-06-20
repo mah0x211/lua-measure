@@ -1,7 +1,7 @@
 # Measure Module Design Document
 
-Version: 0.2.0  
-Date: 2025-06-20
+Version: 0.3.0  
+Date: 2025-06-21
 
 ## Overview
 
@@ -139,9 +139,10 @@ measure.describe('Name').options({}).run(function() end)
 ## Integration Points
 
 ### Registry Module
-- Gets `RegistrySpec` through `registry.new()`
-- Delegates hook storage to `RegistrySpec:set_hook()`
-- Creates describes via `RegistrySpec:new_describe()`
+- Uses `registry.get()` to retrieve specs by source key
+- Uses `registry.add()` to register specs with source key
+- Delegates hook storage to `spec:set_hook()`
+- Creates describes via `spec:new_describe()`
 
 ### Describe Module
 - Receives describe objects from registry
@@ -188,4 +189,4 @@ measure.describe('Example Benchmark')
 
 ## File Scope
 
-Each benchmark file gets its own `RegistrySpec` instance, ensuring complete isolation between files while maintaining consistent API behavior.
+Each benchmark file gets its own `measure.spec` instance, ensuring complete isolation between files while maintaining consistent API behavior. The source file path is used as the registry key for identification.
