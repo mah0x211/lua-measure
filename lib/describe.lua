@@ -40,7 +40,7 @@ local floor = math.floor
 --- @field setup function|nil Setup function for each iteration
 --- @field setup_once function|nil Setup function that runs once before all iterations
 --- @field run function|nil The function to benchmark
---- @field measure function|nil Custom measure function for timing
+--- @field run_with_timer function|nil function to benchmark with timer
 --- @field teardown function|nil Teardown function for cleanup after each iteration
 
 --- @class measure.describe
@@ -112,9 +112,9 @@ function Describe:options(opts)
         return false, 'argument must be a table'
     elseif spec.options then
         return false, 'options cannot be defined twice'
-    elseif spec.setup or spec.setup_once or spec.run or spec.measure then
+    elseif spec.setup or spec.setup_once or spec.run or spec.run_with_timer then
         return false,
-               'options must be defined before setup(), setup_once(), run() or measure()'
+               'options must be defined before setup(), setup_once(), run() or run_with_timer()'
     end
 
     -- Validate options
@@ -139,8 +139,8 @@ function Describe:setup(fn)
         return false, 'cannot be defined twice'
     elseif spec.setup_once then
         return false, 'cannot be defined if setup_once() is defined'
-    elseif spec.run or spec.measure then
-        return false, 'must be defined before run() or measure()'
+    elseif spec.run or spec.run_with_timer then
+        return false, 'must be defined before run() or run_with_timer()'
     end
 
     spec.setup = fn
@@ -159,8 +159,8 @@ function Describe:setup_once(fn)
         return false, 'cannot be defined twice'
     elseif spec.setup then
         return false, 'cannot be defined if setup() is defined'
-    elseif spec.run or spec.measure then
-        return false, 'must be defined before run() or measure()'
+    elseif spec.run or spec.run_with_timer then
+        return false, 'must be defined before run() or run_with_timer()'
     end
 
     spec.setup_once = fn
@@ -177,29 +177,29 @@ function Describe:run(fn)
         return false, 'argument must be a function'
     elseif spec.run then
         return false, 'cannot be defined twice'
-    elseif spec.measure then
-        return false, 'cannot be defined if measure() is defined'
+    elseif spec.run_with_timer then
+        return false, 'cannot be defined if run_with_timer() is defined'
     end
 
     spec.run = fn
     return true
 end
 
---- Define the measure function for custom timing
---- @param fn function The measure function
+--- Define the function to benchmark with timer
+--- @param fn function The run_with_timer function
 --- @return boolean ok True if successful
 --- @return string|nil err Error message if failed
-function Describe:measure(fn)
+function Describe:run_with_timer(fn)
     local spec = self.spec
     if type(fn) ~= 'function' then
         return false, 'argument must be a function'
-    elseif spec.measure then
+    elseif spec.run_with_timer then
         return false, 'cannot be defined twice'
     elseif spec.run then
         return false, 'cannot be defined if run() is defined'
     end
 
-    spec.measure = fn
+    spec.run_with_timer = fn
     return true
 end
 
@@ -213,8 +213,8 @@ function Describe:teardown(fn)
         return false, 'argument must be a function'
     elseif spec.teardown then
         return false, 'cannot be defined twice'
-    elseif not spec.run and not spec.measure then
-        return false, 'must be defined after run() or measure()'
+    elseif not spec.run and not spec.run_with_timer then
+        return false, 'must be defined after run() or run_with_timer()'
     end
 
     spec.teardown = fn
