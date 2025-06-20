@@ -26,53 +26,41 @@ local type = type
 local format = string.format
 local find = string.find
 local tostring = tostring
-local open = io.open
 
 --- Registry of all file specifications
 --- @type table<string, measure.spec>
 local Registry = {}
 
---- Register a new benchmark specification associated with a filename
---- @param filename string The filename to associate with the spec
+--- Register a new benchmark specification associated with a key
+--- @param key string The key to associate with the spec
 --- @param spec measure.spec The benchmark specification to register
 --- @return boolean ok True if successful
 --- @return string|nil err Error message if failed
-local function add_spec(filename, spec)
-    if type(filename) ~= 'string' then
-        return false,
-               format('filename must be a string, got %s', type(filename))
+local function add_spec(key, spec)
+    if type(key) ~= 'string' then
+        return false, format('key must be a string, got %s', type(key))
     elseif not find(tostring(spec), '^measure%.spec') then
         return false,
                format('spec must be a measure.spec, got %q', tostring(spec))
-    elseif Registry[filename] then
-        -- filename already exists in the registry
-        return false,
-               format('filename %q already exists in the registry', filename)
+    elseif Registry[key] then
+        -- key already exists in the registry
+        return false, format('key %q already exists in the registry', key)
     end
 
-    -- Ensure filename can open as a file
-    local file = open(filename, 'r')
-    if not file then
-        -- filename is not a valid file
-        return false,
-               format('filename %q must point to an existing file', filename)
-    end
-    file:close()
-
-    Registry[filename] = spec
+    Registry[key] = spec
     return true
 end
 
---- Get the benchmark specification for a given filename or all specs if nil
---- @param filename string|nil The filename to retrieve spec for, or nil for all
+--- Get the benchmark specification for a given key or all specs if nil
+--- @param key string|nil The key to retrieve spec for, or nil for all
 --- @return measure.spec|table<string, measure.spec>
-local function get(filename)
-    if filename == nil then
+local function get(key)
+    if key == nil then
         return Registry
-    elseif type(filename) == 'string' then
-        return Registry[filename]
+    elseif type(key) == 'string' then
+        return Registry[key]
     end
-    error(format('filename must be a string or nil, got %s', type(filename)), 2)
+    error(format('key must be a string or nil, got %s', type(key)), 2)
 end
 
 --- Clear the registry.

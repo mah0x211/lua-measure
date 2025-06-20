@@ -1,19 +1,19 @@
 # Measure Registry Module Design Document
 
-Version: 0.2.0  
-Date: 2025-06-19
+Version: 0.3.0  
+Date: 2025-06-21
 
 ## Overview
 
-The Measure Registry module manages explicit registration of benchmark specifications and maintains a registry of all benchmarks organized by their source files. It provides a simple, explicit registration model where specs must be explicitly registered with filenames.
+The Measure Registry module manages explicit registration of benchmark specifications and maintains a registry of all benchmarks organized by their identification keys. It provides a simple, explicit registration model where specs must be explicitly registered with string keys.
 
 ## Purpose
 
 This module serves as the central registry that:
-- Maintains a registry mapping filenames to their benchmark specifications
-- Validates file existence for registered specs
+- Maintains a registry mapping string keys to their benchmark specifications
 - Provides explicit registration and retrieval API
 - Supports testing with registry clearing functionality
+- Uses keys as display identifiers for benchmark runners
 
 ## Module Structure
 
@@ -23,9 +23,7 @@ local type = type
 local format = string.format
 local find = string.find
 local tostring = tostring
-local open = io.open
-
--- Registry of all file specifications
+-- Registry of all specifications
 local Registry = {}
 
 -- Public API
@@ -40,28 +38,14 @@ return {
 
 ### 1. Registry Table
 
-The global registry that maps benchmark filenames to their specifications:
+The global registry that maps benchmark keys to their specifications:
 
 ```lua
 --- @type table<string, measure.spec>
 local Registry = {}
 ```
 
-### 2. File Validation
-
-All registered specs must be associated with existing files:
-
-```lua
--- Ensure filename can open as a file
-local file = io.open(filename, 'r')
-if not file then
-    -- filename is not a valid file
-    return false, format('filename %q must point to an existing file', filename)
-end
-file:close()
-```
-
-### 3. Spec Type Validation
+### 2. Spec Type Validation
 
 Only measure.spec objects can be registered:
 
@@ -75,35 +59,35 @@ end
 
 ### add_spec()
 
-Registers a new benchmark specification associated with a filename:
+Registers a new benchmark specification associated with a key:
 
 ```lua
-local function add_spec(filename, spec)
-    if type(filename) ~= 'string' then
-        return false, format('filename must be a string, got %s', type(filename))
+local function add_spec(key, spec)
+    if type(key) ~= 'string' then
+        return false, format('key must be a string, got %s', type(key))
     elseif not find(tostring(spec), '^measure%.spec') then
         return false, format('spec must be a measure.spec, got %q', tostring(spec))
+    elseif Registry[key] then
+        return false, format('key %q already exists in the registry', key)
     end
 
-    -- Ensure filename can open as a file
-    local file = open(filename, 'r')
-    if not file then
-        return false, format('filename %q must point to an existing file', filename)
-    end
-    file:close()
-
-    Registry[filename] = spec
+    Registry[key] = spec
     return true
 end
 ```
 
 ### get()
 
-Returns the entire registry:
+Returns the entire registry or a specific spec by key:
 
 ```lua
-local function get()
-    return Registry
+local function get(key)
+    if key == nil then
+        return Registry
+    elseif type(key) == 'string' then
+        return Registry[key]
+    end
+    error(format('key must be a string or nil, got %s', type(key)), 2)
 end
 ```
 
@@ -123,8 +107,8 @@ The registry maintains a simple mapping structure:
 
 ```
 Registry = {
-    "/path/to/benchmark/example_bench.lua" = spec1,
-    "/path/to/benchmark/another_bench.lua" = spec2,
+    "@/path/to/benchmark/example_bench.lua" = spec1,
+    "@/path/to/benchmark/another_bench.lua" = spec2,
 }
 ```
 
@@ -145,34 +129,34 @@ Where each spec is a `measure.spec` object containing:
 
 ## Explicit Registration Model
 
-Unlike automatic file-based registration, this module requires explicit registration:
+This module requires explicit registration of specifications:
 1. Create a `measure.spec` object
-2. Call `registry.add(filename, spec)` to register it
-3. Registry validates file existence and spec type
+2. Call `registry.add(key, spec)` to register it
+3. Registry validates key type and spec type
 4. Registry stores the association for later retrieval
 
 ## Error Messages
 
 The module provides descriptive error messages:
-- `filename must be a string, got number`
+- `key must be a string, got number`
 - `spec must be a measure.spec, got "string"`
-- `filename "nonexistent.lua" must point to an existing file`
+- `key "duplicate_key" already exists in the registry`
 
 ## Usage Flow
 
 1. Create a `measure.spec` object
 2. Set hooks and describes on the spec
-3. Call `registry.add(filename, spec)` to register the spec
-4. Registry validates filename and spec type
+3. Call `registry.add(key, spec)` to register the spec
+4. Registry validates key and spec type
 5. Registry stores the association for runner access
 6. Use `registry.get()` to retrieve all registered specs
 
 ## Security Considerations
 
-1. **File Existence Validation**: All filenames must point to existing files
-2. **Type Safety**: Only `measure.spec` objects can be registered
-3. **Input Validation**: All parameters validated before registration
-4. **Explicit Control**: No automatic behavior, all registration is explicit
+1. **Type Safety**: Only `measure.spec` objects can be registered
+2. **Input Validation**: All parameters validated before registration  
+3. **Explicit Control**: No automatic behavior, all registration is explicit
+4. **Duplicate Prevention**: Keys must be unique across the registry
 
 ## Example Implementation
 
@@ -192,7 +176,7 @@ desc:run(function()
 end)
 
 -- Register the spec
-local ok, err = registry.add('example_bench.lua', spec)
+local ok, err = registry.add('@example_bench.lua', spec)
 if not ok then
     error('Failed to register spec: ' .. err)
 end
@@ -206,8 +190,8 @@ The runner can access all registered benchmarks:
 local registry = require('measure.registry')
 local all_specs = registry.get()
 
-for filename, spec in pairs(all_specs) do
-    print("Running benchmarks from:", filename)
+for key, spec in pairs(all_specs) do
+    print("Running benchmarks from:", key)
     -- Execute hooks and benchmarks
 end
 ```

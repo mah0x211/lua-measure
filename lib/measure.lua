@@ -70,7 +70,7 @@ end
 --- @return measure.spec
 local function get_spec()
     local info = getinfo(2, 'file')
-    local spec = registry_get(info.file.pathname)
+    local spec = registry_get(info.file.source)
     if spec then
         -- Spec already exists, return it
         return spec
@@ -78,10 +78,11 @@ local function get_spec()
 
     -- Create a new spec for this file
     spec = new_spec()
-    local ok, err = registry_add(info.file.pathname, spec)
+    local ok, err = registry_add(info.file.source, spec)
     if not ok then
-        error(format('Failed to register spec for %q: %s', info.file.pathname,
-                     err), 2)
+        error(
+            format('Failed to register spec for %q: %s', info.file.source, err),
+            2)
     end
     return spec
 end
