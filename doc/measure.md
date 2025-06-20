@@ -1,7 +1,7 @@
 # Measure Module Design Document
 
-Version: 0.1.0  
-Date: 2025-06-17
+Version: 0.2.0  
+Date: 2025-06-20
 
 ## Overview
 
@@ -27,21 +27,15 @@ return registrar
 The registrar is a metatable-controlled object that serves as the main API:
 
 ```lua
-local registrar = setmetatable({}, {
+local measure = setmetatable({}, {
     __newindex = hook_setter,      -- Handles hook assignments
-    __call = method_caller,        -- Handles method calls
-    __index = method_resolver      -- Handles property access
+    __index = allow_new_describe   -- Handles property access for 'describe'
 })
 ```
 
 ### 2. State Management
 
-```lua
--- Internal state tracking
-local desc = nil          -- Current describe object or method name
-local descfn = nil        -- Pending method to call
-local RegistrySpec = nil  -- File-specific registry specification
-```
+The module maintains minimal internal state for security and simplicity. File-specific registry specifications are obtained dynamically through the `get_spec()` function, eliminating the need for persistent state variables.
 
 ### 3. Hook Management
 
@@ -57,72 +51,70 @@ The module supports four lifecycle hooks that are set via direct assignment:
 ### Hook Setter (__newindex)
 
 ```lua
-__newindex = function(_, key, fn)
-    local ok, err = RegistrySpec:set_hook(key, fn)
+local function hook_setter(_, key, fn)
+    local spec = get_spec()
+    local ok, err = spec:set_hook(key, fn)
     if not ok then
         error(err, 2)
     end
 end
 ```
 
-Validates and registers lifecycle hooks through the registry spec.
+Validates and registers lifecycle hooks through the dynamically obtained registry spec.
 
 ### Method Caller (__call)
 
-```lua
-__call = function(self, ...)
-    if desc == 'describe' then
-        -- Create new benchmark description
-        local err
-        desc, err = RegistrySpec:new_describe(...)
-        if not desc then
-            error(err, 2)
-        end
-        return self
-    end
-    
-    if desc == nil or descfn == nil then
-        error('Attempt to call measure as a function', 2)
-    end
-    
-    -- Call method on current describe object
-    local fn = desc[descfn]
-    if type(fn) ~= 'function' then
-        error(('%s has no %q'):format(desc, descfn), 2)
-    end
-    
-    local ok, err = fn(desc, ...)
-    if not ok then
-        error(('%s %s(): %s'):format(desc, descfn, err), 2)
-    end
-    
-    descfn = nil
-    return self
-end
-```
-
-Handles both `measure.describe()` calls and chained method calls.
+The measure object does not have a `__call` metamethod. Attempting to call `measure()` directly will result in an error. The `describe` function is accessed through the `__index` metamethod.
 
 ### Method Resolver (__index)
 
 ```lua
-__index = function(self, key)
-    if type(key) ~= 'string' or type(desc) == 'string' or descfn then
-        error(('Attempt to access measure as a table: %q'):format(
-            tostring(key)), 2)
+local function allow_new_describe(self, key)
+    if type(key) ~= 'string' or key ~= 'describe' then
+        error(format('Attempt to access measure as a table: %q', tostring(key)), 2)
     end
-    
-    if desc == nil then
-        desc = key
-        return self
-    end
-    
-    descfn = key
-    return self
+    return new_describe
 end
 ```
 
-Manages the state machine for method chaining.
+This function enforces strict access control:
+- Only allows access to the `describe` key
+- Returns the `new_describe` function directly
+- Prevents any other table-like access to the measure object
+
+### Describe Proxy Implementation
+
+The `new_describe` function returns a proxy object that implements method chaining:
+
+```lua
+local function new_describe_proxy(name, desc)
+    return setmetatable({}, {
+        __tostring = function()
+            return format('measure.describe %q', name)
+        end,
+        __index = function(self, method)
+            if type(method) ~= 'string' then
+                error(format('Attempt to access measure.describe as a table: %q',
+                          tostring(method)), 2)
+            end
+            
+            return function(...)
+                local fn = desc[method]
+                if type(fn) ~= 'function' then
+                    error(format('%s has no method %q', tostring(self), method), 2)
+                end
+                
+                local ok, err = fn(desc, ...)
+                if not ok then
+                    error(format('%s(): %s', method, err), 2)
+                end
+                
+                return self
+            end
+        end,
+    })
+end
+```
 
 ## API Flow
 
@@ -137,10 +129,12 @@ measure.after_each = function(i, ctx) end
 measure.describe('Name').options({}).run(function() end)
 ```
 
-### 3. State Transitions
-```
-Initial → describe → DescribeActive → method → MethodPending → call → DescribeActive
-```
+### 3. API Usage Flow
+
+1. Access `measure.describe` returns the `new_describe` function
+2. Call `new_describe(name)` creates a describe object and returns a proxy
+3. Access proxy methods returns functions that can be called immediately
+4. Method calls return the proxy for chaining
 
 ## Integration Points
 
@@ -163,9 +157,12 @@ All errors are propagated with appropriate stack levels:
 ## Security Considerations
 
 1. **No Direct State Access**: All state is internal and never exposed
-2. **Controlled Method Flow**: State machine prevents invalid sequences
+2. **Reference Storage Prevention**: The design prevents storing references to bypass security checks
 3. **Type Validation**: All inputs validated before processing
 4. **Error Isolation**: Errors thrown at appropriate stack levels
+5. **Describe Chain Prevention**: The proxy pattern prevents `measure.describe(...).describe(...)` calls:
+   - `measure.describe` proxy instances have no `describe` method
+   - Attempting to chain `describe` calls results in "has no method" errors
 
 ## Usage Example
 
@@ -173,16 +170,20 @@ All errors are propagated with appropriate stack levels:
 local measure = require('measure')
 
 -- Define hooks
-function measure.before_all()
+measure.before_all = function()
     return { start_time = os.time() }
 end
 
--- Define benchmark
+-- Define benchmark (correct usage)
 measure.describe('Example Benchmark')
     .options({ warmup = 10 })
     .run(function()
         -- benchmark code
     end)
+
+-- Invalid usage (will throw error)
+-- measure.describe('Test').describe('Another')  -- Error: has no method "describe"
+-- measure()  -- Error: Attempt to call measure
 ```
 
 ## File Scope
