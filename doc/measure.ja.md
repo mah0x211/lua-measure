@@ -1,7 +1,7 @@
 # Measureモジュール設計書
 
-バージョン: 0.1.0  
-日付: 2025-06-17
+バージョン: 0.2.0  
+日付: 2025-06-20
 
 ## 概要
 
@@ -27,21 +27,15 @@ return registrar
 レジストラは、メインAPIとして機能するメタテーブル制御オブジェクトです：
 
 ```lua
-local registrar = setmetatable({}, {
+local measure = setmetatable({}, {
     __newindex = hook_setter,      -- フック割り当てを処理
-    __call = method_caller,        -- メソッド呼び出しを処理
-    __index = method_resolver      -- プロパティアクセスを処理
+    __index = allow_new_describe   -- 'describe'のプロパティアクセスを処理
 })
 ```
 
 ### 2. 状態管理
 
-```lua
--- 内部状態追跡
-local desc = nil          -- 現在のdescribeオブジェクトまたはメソッド名
-local descfn = nil        -- 呼び出し待ちメソッド
-local RegistrySpec = nil  -- ファイル固有のレジストリ仕様
-```
+モジュールはセキュリティとシンプルさのため最小限の内部状態を維持します。ファイル固有のレジストリ仕様は`get_spec()`関数を通じて動的に取得され、永続的な状態変数の必要性を排除します。
 
 ### 3. フック管理
 
@@ -57,72 +51,70 @@ local RegistrySpec = nil  -- ファイル固有のレジストリ仕様
 ### フックセッター (__newindex)
 
 ```lua
-__newindex = function(_, key, fn)
-    local ok, err = RegistrySpec:set_hook(key, fn)
+local function hook_setter(_, key, fn)
+    local spec = get_spec()
+    local ok, err = spec:set_hook(key, fn)
     if not ok then
         error(err, 2)
     end
 end
 ```
 
-レジストリ仕様を通じてライフサイクルフックを検証し登録します。
+動的に取得されたレジストリ仕様を通じてライフサイクルフックを検証し登録します。
 
 ### メソッド呼び出し器 (__call)
 
-```lua
-__call = function(self, ...)
-    if desc == 'describe' then
-        -- 新しいベンチマーク記述を作成
-        local err
-        desc, err = RegistrySpec:new_describe(...)
-        if not desc then
-            error(err, 2)
-        end
-        return self
-    end
-    
-    if desc == nil or descfn == nil then
-        error('Attempt to call measure as a function', 2)
-    end
-    
-    -- 現在のdescribeオブジェクトでメソッドを呼び出す
-    local fn = desc[descfn]
-    if type(fn) ~= 'function' then
-        error(('%s has no %q'):format(desc, descfn), 2)
-    end
-    
-    local ok, err = fn(desc, ...)
-    if not ok then
-        error(('%s %s(): %s'):format(desc, descfn, err), 2)
-    end
-    
-    descfn = nil
-    return self
-end
-```
-
-`measure.describe()`呼び出しとチェーンメソッド呼び出しの両方を処理します。
+measureオブジェクトには`__call`メタメソッドがありません。`measure()`を直接呼び出そうとするとエラーになります。`describe`関数は`__index`メタメソッドを通じてアクセスされます。
 
 ### メソッド解決器 (__index)
 
 ```lua
-__index = function(self, key)
-    if type(key) ~= 'string' or type(desc) == 'string' or descfn then
-        error(('Attempt to access measure as a table: %q'):format(
-            tostring(key)), 2)
+local function allow_new_describe(self, key)
+    if type(key) ~= 'string' or key ~= 'describe' then
+        error(format('Attempt to access measure as a table: %q', tostring(key)), 2)
     end
-    
-    if desc == nil then
-        desc = key
-        return self
-    end
-    
-    descfn = key
-    return self
+    return new_describe
 end
 ```
 
-メソッドチェーンのステートマシンを管理します。
+この関数は厳格なアクセス制御を実行します：
+- `describe`キーへのアクセスのみを許可
+- `new_describe`関数を直接返す
+- measureオブジェクトへのその他のテーブルライクアクセスを防止
+
+### Describeプロキシ実装
+
+`new_describe`関数はメソッドチェーンを実装するプロキシオブジェクトを返します：
+
+```lua
+local function new_describe_proxy(name, desc)
+    return setmetatable({}, {
+        __tostring = function()
+            return format('measure.describe %q', name)
+        end,
+        __index = function(self, method)
+            if type(method) ~= 'string' then
+                error(format('Attempt to access measure.describe as a table: %q',
+                          tostring(method)), 2)
+            end
+            
+            return function(...)
+                local fn = desc[method]
+                if type(fn) ~= 'function' then
+                    error(format('%s has no method %q', tostring(self), method), 2)
+                end
+                
+                local ok, err = fn(desc, ...)
+                if not ok then
+                    error(format('%s(): %s', method, err), 2)
+                end
+                
+                return self
+            end
+        end,
+    })
+end
+```
 
 ## APIフロー
 
@@ -137,10 +129,12 @@ measure.after_each = function(i, ctx) end
 measure.describe('Name').options({}).run(function() end)
 ```
 
-### 3. 状態遷移
-```
-初期 → describe → Describeアクティブ → メソッド → メソッド保留 → 呼び出し → Describeアクティブ
-```
+### 3. API使用フロー
+
+1. `measure.describe`へのアクセスが`new_describe`関数を返す
+2. `new_describe(name)`の呼び出しがdescribeオブジェクトを作成しプロキシを返す
+3. プロキシメソッドへのアクセスが即座に呼び出し可能な関数を返す
+4. メソッド呼び出しがチェーン用にプロキシを返す
 
 ## 統合ポイント
 
@@ -163,9 +157,12 @@ measure.describe('Name').options({}).run(function() end)
 ## セキュリティ考慮事項
 
 1. **直接状態アクセスなし**: すべての状態は内部的で公開されない
-2. **制御されたメソッドフロー**: ステートマシンが無効なシーケンスを防止
+2. **参照保存の防止**: セキュリティチェックを回避する参照保存を防ぐ設計
 3. **型検証**: すべての入力が処理前に検証される
 4. **エラー分離**: 適切なスタックレベルでエラーをスロー
+5. **Describeチェーンの防止**: プロキシパターンが`measure.describe(...).describe(...)`呼び出しを防止：
+   - `measure.describe`プロキシインスタンスには`describe`メソッドが存在しない
+   - `describe`呼び出しをチェーンしようとすると"has no method"エラーが発生
 
 ## 使用例
 
@@ -173,16 +170,20 @@ measure.describe('Name').options({}).run(function() end)
 local measure = require('measure')
 
 -- フックを定義
-function measure.before_all()
+measure.before_all = function()
     return { start_time = os.time() }
 end
 
--- ベンチマークを定義
+-- ベンチマークを定義（正しい使用法）
 measure.describe('Example Benchmark')
     .options({ warmup = 10 })
     .run(function()
         -- ベンチマークコード
     end)
+
+-- 無効な使用法（エラーになる）
+-- measure.describe('Test').describe('Another')  -- Error: has no method "describe"
+-- measure()  -- Error: Attempt to call measure
 ```
 
 ## ファイルスコープ
