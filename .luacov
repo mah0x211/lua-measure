@@ -3,9 +3,11 @@ runreport = true
 deletestats = true
 modules = {
     -- define the modules for coverage reporting
+    ["measure"] = "lib/measure.lua",
     ["measure.describe"] = "lib/describe.lua",
     ["measure.getinfo"] = "lib/getinfo.lua",
     ["measure.metatable"] = "lib/metatable.lua",
+    ["measure.realpath"] = "lib/realpath.lua",
     ["measure.registry"] = "lib/registry.lua",
     ["measure.spec"] = "lib/spec.lua",
 }
