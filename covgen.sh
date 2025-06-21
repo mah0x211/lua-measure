@@ -27,7 +27,7 @@ lcov --capture --directory ./src --output-file coverage.info --ignore-errors gco
 lcov --extract coverage.info "${SRC_ABS_PATH}/*" --output-file coverage.info --ignore-errors source
 
 # Generate HTML report
-genhtml coverage.info --output-directory coverage_html
+genhtml coverage.info --output-directory coverage
 
 echo "Coverage report generated successfully!"
-echo "Open coverage_html/index.html to view the report"
+echo "Open coverage/index.html to view the report"

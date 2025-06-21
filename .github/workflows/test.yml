@@ -50,6 +50,7 @@ jobs:
     -
       name: Install Test Dependencies
       run: |
+        sudo apt install lcov -y
         luarocks install testcase
         luarocks install luacov
     -
