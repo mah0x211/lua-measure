@@ -112,7 +112,7 @@ static int new_lua(lua_State *L)
     s->data = (measure_samples_data_t *)lua_newuserdata(
         L, sizeof(measure_samples_data_t) * capacity);
     s->ref_data = luaL_ref(L, LUA_REGISTRYINDEX);
-    memset(s->data, 0, sizeof(uint64_t) * capacity);
+    memset(s->data, 0, sizeof(measure_samples_data_t) * capacity);
 
     return 1;
 }
