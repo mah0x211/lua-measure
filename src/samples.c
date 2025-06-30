@@ -27,8 +27,8 @@ static int dump_lua(lua_State *L)
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
     lua_settop(L, 1);
 
-    // Create a table with 4 fields for column-oriented format
-    lua_createtable(L, 0, 4);
+    // Create a table with 8 fields (4 data arrays + 4 metadata fields)
+    lua_createtable(L, 0, 8);
 
     // Create time_ns, before_kb, after_kb and allocated_kb arrays
     lua_createtable(L, s->count, 0); // 3: time_ns
@@ -50,6 +50,19 @@ static int dump_lua(lua_State *L)
     lua_setfield(L, 2, "after_kb");
     lua_setfield(L, 2, "before_kb");
     lua_setfield(L, 2, "time_ns");
+
+    // Add metadata fields
+    lua_pushinteger(L, s->capacity);
+    lua_setfield(L, 2, "capacity");
+    
+    lua_pushinteger(L, s->count);
+    lua_setfield(L, 2, "count");
+    
+    lua_pushinteger(L, s->gc_step);
+    lua_setfield(L, 2, "gc_step");
+    
+    lua_pushinteger(L, s->base_kb);
+    lua_setfield(L, 2, "base_kb");
 
     return 1;
 }
