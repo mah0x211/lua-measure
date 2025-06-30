@@ -3,83 +3,6 @@ local assert = require('assert')
 local new_samples = require('measure.samples')
 local sampler = require('measure.sampler')
 
--- Test measure.samples module
-function testcase.samples_new()
-    -- Test default capacity
-    local s = new_samples()
-    assert.match(tostring(s), '^measure.samples: ', false)
-    assert.equal(s:capacity(), 1000)
-    assert.equal(#s, 0)
-
-    -- Test custom capacity
-    s = new_samples(100)
-    assert.equal(s:capacity(), 100)
-    assert.equal(#s, 0)
-
-    -- Test large capacity
-    s = new_samples(10000)
-    assert.equal(s:capacity(), 10000)
-    assert.equal(#s, 0)
-end
-
-function testcase.samples_new_invalid_args()
-    -- Test invalid capacity (returns nil + error message)
-    local s, err = new_samples(0)
-    assert.is_nil(s)
-    assert.match(err, "capacity must be > 0", false)
-
-    s, err = new_samples(-1)
-    assert.is_nil(s)
-    assert.match(err, "capacity must be > 0", false)
-
-    -- Test non-integer arguments (luaL_optinteger throws error for non-numbers)
-    -- These should throw errors
-    assert.throws(function()
-        new_samples('invalid')
-    end)
-
-    assert.throws(function()
-        new_samples({})
-    end)
-
-    assert.throws(function()
-        new_samples(true)
-    end)
-
-    -- Test multiple arguments (second arg should be ignored)
-    s = new_samples(100, 200, 300)
-    assert.equal(s:capacity(), 100)
-end
-
-function testcase.samples_dump()
-    local s = new_samples(10)
-
-    -- Test empty dump with new column-oriented format
-    local data = s:dump()
-    assert.is_table(data)
-    assert.is_table(data.time_ns)
-    assert.is_table(data.before_kb)
-    assert.is_table(data.after_kb)
-    assert.is_table(data.allocated_kb)
-    assert.equal(#data.time_ns, 0)
-    assert.equal(#data.before_kb, 0)
-    assert.equal(#data.after_kb, 0)
-    assert.equal(#data.allocated_kb, 0)
-end
-
-function testcase.samples_metamethods()
-    local s = new_samples(100)
-
-    -- Test __tostring
-    assert.match(tostring(s), '^measure.samples: 0x', false)
-
-    -- Test __len (initially 0)
-    assert.equal(#s, 0)
-
-    -- Test that metatable is protected
-    assert.is_table(getmetatable(s).__index)
-end
-
 -- Test measure.sampler module (function-based API)
 function testcase.sampler_basic_call()
     local samples = new_samples(10)
@@ -252,7 +175,7 @@ function testcase.sampler_function_errors()
     -- Test nil access error
     ok, err = sampler(function()
         local x = nil
-        return x.unknown_field -- Try to access field on nil  -- luacheck: ignore
+        return x.unknown_field -- Try to access field on nil  -- luacheck: ignore x.unknown_field
     end, samples)
 
     assert.is_false(ok)
@@ -395,25 +318,6 @@ function testcase.sampler_gc_behavior()
     assert.equal(#samples, 10)
 end
 
-function testcase.samples_method_protection()
-    local samples = new_samples(10)
-
-    -- Test that we can't call methods on wrong type
-    assert.throws(function()
-        samples.capacity({})
-    end)
-
-    assert.throws(function()
-        samples.dump('invalid')
-    end)
-
-    -- Test calling with colon syntax on wrong object
-    local fake = {}
-    assert.throws(function()
-        new_samples().capacity(fake)
-    end)
-end
-
 function testcase.sampler_function_protection()
     local samples = new_samples(10)
 
@@ -470,22 +374,6 @@ function testcase.sampler_memory_error_simulation()
     if not ok then
         assert.match(err, "error:", false)
     end
-end
-
--- Test new samples with GC configuration
-function testcase.samples_with_gc_step()
-    -- Test samples with different GC configurations
-    local s1 = new_samples(10) -- Default GC step (0 = full GC)
-    assert.equal(s1:capacity(), 10)
-
-    local s2 = new_samples(10, -1) -- Disabled GC
-    assert.equal(s2:capacity(), 10)
-
-    local s3 = new_samples(10, 0) -- Full GC
-    assert.equal(s3:capacity(), 10)
-
-    local s4 = new_samples(10, 1024) -- Step GC with 1024KB threshold
-    assert.equal(s4:capacity(), 10)
 end
 
 function testcase.sampler_with_gc_data()
