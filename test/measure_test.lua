@@ -1,65 +1,9 @@
 require('luacov')
 local testcase = require('testcase')
 local assert = require('assert')
-local registry = require('measure.registry')
 
--- Create a mock measure object that doesn't require file validation
-local getinfo = require('measure.getinfo')
-local new_spec = require('measure.spec')
-
--- Helper function to get the test file path
-local function get_test_file_path()
-    local info = getinfo(1, 'file')
-    return info.file.pathname
-end
-
--- Mock measure object for testing
-local measure = setmetatable({}, {
-    __index = function(_, key)
-        if key == 'describe' then
-            -- Create a mock describe function that works with the test file
-            return function(name, namefn)
-                local test_file = get_test_file_path()
-                local spec = registry.get(test_file) or new_spec()
-                if not registry.get(test_file) then
-                    registry.add(test_file, spec)
-                end
-
-                local desc, err = spec:new_describe(name, namefn)
-                if not desc then
-                    error(err, 2)
-                end
-
-                -- Return a proxy that supports method chaining
-                return setmetatable({}, {
-                    __index = function(proxy, method)
-                        return function(...)
-                            local ok, method_err = desc[method](desc, ...)
-                            if not ok then
-                                error(method .. '(): ' .. method_err, 2)
-                            end
-                            return proxy
-                        end
-                    end,
-                })
-            end
-        end
-        return nil
-    end,
-    __newindex = function(_, key, value)
-        -- Handle hook assignments
-        local test_file = get_test_file_path()
-        local spec = registry.get(test_file) or new_spec()
-        if not registry.get(test_file) then
-            registry.add(test_file, spec)
-        end
-
-        local ok, err = spec:set_hook(key, value)
-        if not ok then
-            error(err, 2)
-        end
-    end,
-})
+-- Use actual measure module instead of mock
+local measure = require('measure')
 
 function testcase.before_each()
     -- Clear registry state for each test
@@ -138,8 +82,8 @@ function testcase.describe_basic()
     local desc = measure.describe('Test Benchmark')
     assert.is_table(desc)
 
-    -- Should return the measure object for chaining
-    assert.equal(desc, measure)
+    -- Check tostring format to verify it's a proxy object
+    assert.equal(tostring(desc), 'measure.describe "Test Benchmark"')
 end
 
 function testcase.describe_with_namefn()
@@ -148,7 +92,10 @@ function testcase.describe_with_namefn()
         return 'Test ' .. i
     end
     local desc = measure.describe('Base Name', namefn)
-    assert.equal(desc, measure)
+    assert.is_table(desc)
+
+    -- Check tostring format to verify it's a proxy object
+    assert.equal(tostring(desc), 'measure.describe "Base Name"')
 end
 
 function testcase.describe_invalid_name()
@@ -182,7 +129,8 @@ function testcase.method_chaining_options()
         sample_size = 1000,
     })
 
-    assert.equal(result, measure)
+    -- Result should be the same proxy object
+    assert.match(result, 'measure.describe "Test"')
 end
 
 function testcase.method_chaining_setup()
@@ -191,7 +139,7 @@ function testcase.method_chaining_setup()
         return 'setup_value'
     end)
 
-    assert.equal(result, measure)
+    assert.match(result, 'measure.describe "Test"')
 end
 
 function testcase.method_chaining_setup_once()
@@ -200,7 +148,7 @@ function testcase.method_chaining_setup_once()
         return 'setup_once_value'
     end)
 
-    assert.equal(result, measure)
+    assert.match(result, 'measure.describe "Test"')
 end
 
 function testcase.method_chaining_run()
@@ -209,7 +157,7 @@ function testcase.method_chaining_run()
         -- benchmark code
     end)
 
-    assert.equal(result, measure)
+    assert.match(result, 'measure.describe "Test"')
 end
 
 function testcase.method_chaining_run_with_timer()
@@ -218,7 +166,7 @@ function testcase.method_chaining_run_with_timer()
         -- measurement code
     end)
 
-    assert.equal(result, measure)
+    assert.match(result, 'measure.describe "Test"')
 end
 
 function testcase.method_chaining_teardown()
@@ -229,7 +177,7 @@ function testcase.method_chaining_teardown()
         -- cleanup code
     end)
 
-    assert.equal(result, measure)
+    assert.match(result, 'measure.describe "Test"')
 end
 
 function testcase.method_chaining_full_sequence()
@@ -246,7 +194,7 @@ function testcase.method_chaining_full_sequence()
         -- cleanup
     end)
 
-    assert.equal(result, measure)
+    assert.match(result, 'measure.describe "Full Test"')
 end
 
 function testcase.method_error_handling()
