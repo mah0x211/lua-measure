@@ -11,4 +11,10 @@ modules = {
     ["measure.realpath"] = "lib/realpath.lua",
     ["measure.registry"] = "lib/registry.lua",
     ["measure.spec"] = "lib/spec.lua",
+    ["measure.stats.median"] = "lib/stats/median.lua",
+    ["measure.stats.p25"] = "lib/stats/p25.lua",
+    ["measure.stats.p75"] = "lib/stats/p75.lua",
+    ["measure.stats.p95"] = "lib/stats/p95.lua",
+    ["measure.stats.p99"] = "lib/stats/p99.lua",
+    ["measure.stats.stddev"] = "lib/stats/stddev.lua",
 }
