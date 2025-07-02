@@ -17,4 +17,5 @@ modules = {
     ["measure.stats.p95"] = "lib/stats/p95.lua",
     ["measure.stats.p99"] = "lib/stats/p99.lua",
     ["measure.stats.stddev"] = "lib/stats/stddev.lua",
+    ["measure.stats.throughput"] = "lib/stats/throughput.lua",
 }
