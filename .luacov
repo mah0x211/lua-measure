@@ -12,6 +12,7 @@ modules = {
     ["measure.registry"] = "lib/registry.lua",
     ["measure.spec"] = "lib/spec.lua",
     ["measure.stats.cv"] = "lib/stats/cv.lua",
+    ["measure.stats.ci"] = "lib/stats/ci.lua",
     ["measure.stats.iqr"] = "lib/stats/iqr.lua",
     ["measure.stats.median"] = "lib/stats/median.lua",
     ["measure.stats.p25"] = "lib/stats/p25.lua",
