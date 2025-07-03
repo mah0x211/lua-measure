@@ -1,6 +1,7 @@
 require('luacov')
 local testcase = require('testcase')
 local assert = require('assert')
+local getfiletype = require('measure.getfiletype')
 
 function testcase.before_all()
     -- Create test directory if not exists
@@ -14,13 +15,11 @@ end
 
 function testcase.module_loading()
     -- Test module loading
-    local getfiletype = require('measure.getfiletype')
     assert.is_function(getfiletype)
 end
 
 function testcase.regular_file()
     -- Test regular file detection
-    local getfiletype = require('measure.getfiletype')
 
     -- Create a test file
     local test_file = 'test/tmp/test_regular_file.txt'
@@ -37,7 +36,6 @@ end
 
 function testcase.directory()
     -- Test directory detection
-    local getfiletype = require('measure.getfiletype')
 
     local test_dir = 'test/tmp/test_directory'
     os.execute('mkdir -p ' .. test_dir)
@@ -51,7 +49,6 @@ end
 
 function testcase.symbolic_link()
     -- Test symbolic link detection
-    local getfiletype = require('measure.getfiletype')
 
     -- Create a symlink in test directory
     local test_file = 'test/tmp/test_target_file.txt'
@@ -74,7 +71,6 @@ end
 
 function testcase.fifo()
     -- Test FIFO/named pipe detection
-    local getfiletype = require('measure.getfiletype')
 
     -- Force create a test FIFO
     local test_fifo = 'test/tmp/test_fifo_' .. os.time()
@@ -116,7 +112,6 @@ end
 
 function testcase.character_device()
     -- Test character device detection
-    local getfiletype = require('measure.getfiletype')
 
     -- Try common character devices
     local char_devices = {
@@ -144,7 +139,6 @@ end
 
 function testcase.block_device()
     -- Test block device detection
-    local getfiletype = require('measure.getfiletype')
 
     -- Try common block devices on macOS and Linux
     local block_devices = {
@@ -174,7 +168,6 @@ end
 
 function testcase.nonexistent_file()
     -- Test error handling for nonexistent file
-    local getfiletype = require('measure.getfiletype')
 
     local result, err, errno = getfiletype('test/tmp/nonexistent_file_12345')
     assert.is_nil(result)
@@ -189,7 +182,6 @@ end
 
 function testcase.permission_denied()
     -- Test error handling for permission denied
-    local getfiletype = require('measure.getfiletype')
 
     -- Create a file and remove read permissions
     local test_file = 'test/tmp/test_no_permission.txt'
@@ -212,7 +204,6 @@ end
 
 function testcase.invalid_argument_type()
     -- Test argument validation - luaL_checkstring converts numbers to strings
-    local getfiletype = require('measure.getfiletype')
 
     -- Numbers get converted to strings by luaL_checkstring
     local result, err, errno = getfiletype(123)
@@ -233,7 +224,6 @@ end
 
 function testcase.no_arguments()
     -- Test with no arguments
-    local getfiletype = require('measure.getfiletype')
 
     assert.throws(function()
         getfiletype()
@@ -242,7 +232,6 @@ end
 
 function testcase.empty_string()
     -- Test with empty string
-    local getfiletype = require('measure.getfiletype')
 
     local result, err, errno = getfiletype('')
     assert.is_nil(result)
@@ -252,7 +241,6 @@ end
 
 function testcase.socket_file()
     -- Test socket detection
-    local getfiletype = require('measure.getfiletype')
 
     -- Create a socket in test directory
     local socket_path = 'test/tmp/test_socket_' .. os.time()
@@ -278,7 +266,6 @@ end
 
 function testcase.multiple_calls()
     -- Test multiple calls to ensure no state corruption
-    local getfiletype = require('measure.getfiletype')
 
     -- Create test files
     local test_file1 = 'test/tmp/test_file1.txt'
@@ -309,7 +296,6 @@ end
 
 function testcase.very_long_path()
     -- Test with a very long path
-    local getfiletype = require('measure.getfiletype')
 
     local long_path = 'test/tmp/' .. string.rep('a', 1000) .. '.txt'
     local result, err, errno = getfiletype(long_path)
@@ -322,7 +308,6 @@ end
 
 function testcase.path_with_special_characters()
     -- Test with special characters in path
-    local getfiletype = require('measure.getfiletype')
 
     local special_file = 'test/tmp/test file with spaces & symbols!.txt'
     local f = io.open(special_file, 'w')
