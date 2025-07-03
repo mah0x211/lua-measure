@@ -2,6 +2,8 @@ require('luacov')
 local testcase = require('testcase')
 local assert = require('assert')
 local loadfiles = require('measure.loadfiles')
+local registry = require('measure.registry')
+local getfiletype = require('measure.getfiletype')
 
 -- Temporary file management
 local TMPFILES = {}
@@ -260,7 +262,6 @@ end
 
 function testcase.spec_registration()
     -- Test that files properly register specs in the registry
-    local registry = require('measure.registry')
     capture_print()
 
     -- Clear registry first
@@ -321,7 +322,6 @@ end
 
 function testcase.registry_key_validation()
     -- Test that registry key validation works correctly
-    local registry = require('measure.registry')
     capture_print()
 
     -- Manually add an entry with wrong key to registry
@@ -374,7 +374,6 @@ function testcase.directory_listing_error()
     os.execute('chmod 000 ' .. test_dir)
 
     -- getfiletype should report this as inaccessible
-    local getfiletype = require('measure.getfiletype')
     local filetype = getfiletype(test_dir)
 
     -- Restore permissions for cleanup
