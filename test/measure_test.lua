@@ -4,10 +4,11 @@ local assert = require('assert')
 
 -- Use actual measure module instead of mock
 local measure = require('measure')
+local registry = require('measure.registry')
 
 function testcase.before_each()
     -- Clear registry state for each test
-    require('measure.registry').clear()
+    registry.clear()
 end
 
 function testcase.hook_assignment_before_all()
@@ -301,7 +302,7 @@ end
 -- Test cases for actual measure module to verify constraint behaviors
 function testcase.actual_measure_describe_chain_prevention()
     -- Test actual measure module to ensure describe chaining is prevented
-    require('measure.registry').clear()
+    registry.clear()
     local actual_measure = require('measure')
 
     assert.throws(function()
@@ -311,7 +312,7 @@ end
 
 function testcase.actual_measure_allow_new_describe_flag()
     -- Test AllowNewDescribe flag behavior with actual module
-    require('measure.registry').clear()
+    registry.clear()
     local actual_measure = require('measure')
 
     -- First access to describe should work
@@ -325,7 +326,7 @@ end
 
 function testcase.actual_measure_proxy_table_access_prevention()
     -- Test that proxy object returns functions for method access
-    require('measure.registry').clear()
+    registry.clear()
     local actual_measure = require('measure')
 
     local desc_proxy = actual_measure.describe('Test')
@@ -341,7 +342,7 @@ end
 
 function testcase.actual_measure_proxy_multiple_method_access()
     -- Test that proxy allows multiple method access with new implementation
-    require('measure.registry').clear()
+    registry.clear()
     local actual_measure = require('measure')
 
     local desc_proxy = actual_measure.describe('Test')
@@ -363,7 +364,7 @@ end
 
 function testcase.actual_measure_error_messages()
     -- Test accurate error messages from actual module
-    require('measure.registry').clear()
+    registry.clear()
     local actual_measure = require('measure')
 
     -- Test function call error
@@ -384,7 +385,7 @@ end
 
 function testcase.actual_measure_hook_name_validation()
     -- Test hook name validation with actual module
-    require('measure.registry').clear()
+    registry.clear()
     local actual_measure = require('measure')
 
     assert.throws(function()
@@ -400,7 +401,7 @@ end
 
 function testcase.actual_measure_describe_parameter_validation()
     -- Test describe parameter validation
-    require('measure.registry').clear()
+    registry.clear()
     local actual_measure = require('measure')
 
     assert.throws(function()
@@ -414,7 +415,7 @@ end
 
 function testcase.actual_measure_proxy_call_without_method()
     -- Test calling proxy without setting method
-    require('measure.registry').clear()
+    registry.clear()
     local actual_measure = require('measure')
 
     local desc_proxy = actual_measure.describe('Test')
@@ -425,7 +426,7 @@ end
 
 function testcase.actual_measure_complete_workflow()
     -- Test complete workflow with actual module
-    require('measure.registry').clear()
+    registry.clear()
     local actual_measure = require('measure')
 
     -- Set hooks
@@ -461,7 +462,7 @@ end
 
 function testcase.actual_measure_proxy_non_string_method_access()
     -- Test non-string method access on proxy object
-    require('measure.registry').clear()
+    registry.clear()
     local actual_measure = require('measure')
 
     local desc_proxy = actual_measure.describe('Test')
@@ -484,7 +485,7 @@ end
 
 function testcase.actual_measure_method_call_error()
     -- Test method call that returns error
-    require('measure.registry').clear()
+    registry.clear()
     local actual_measure = require('measure')
 
     local desc_proxy = actual_measure.describe('Test')
@@ -510,7 +511,7 @@ end
 
 function testcase.actual_measure_proxy_tostring()
     -- Test __tostring metamethod of proxy object
-    require('measure.registry').clear()
+    registry.clear()
     local actual_measure = require('measure')
 
     local desc_proxy = actual_measure.describe('MyBenchmark')
