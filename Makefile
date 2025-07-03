@@ -1,28 +1,33 @@
 # Package name
 PACKAGE_NAME = measure
 
-# Source files
-SRCS = $(wildcard src/*.c)
-SOBJ = $(SRCS:.c=.$(LIB_EXTENSION))
+# Source files - simple and recursive
+CSRCS = $(shell find src -name '*.c')
+COBJS = $(CSRCS:.c=.$(LIB_EXTENSION))
+CLIBS = $(patsubst src/%,$(INST_CLIBDIR)/%,$(COBJS))
+
 LUASRCS = $(shell find lib -name '*.lua')
+LUALIBS = $(patsubst lib/%,$(INST_LUALIBDIR)/%,$(filter-out lib/$(PACKAGE_NAME).lua,$(LUASRCS)))
+MAINLIB = $(if $(wildcard lib/$(PACKAGE_NAME).lua),$(INST_LUADIR)/$(PACKAGE_NAME).lua)
 
 # Install directories
 INST_LUALIBDIR = $(INST_LUADIR)/$(PACKAGE_NAME)
 INST_CLIBDIR = $(INST_LIBDIR)/$(PACKAGE_NAME)
-LUALIBS = $(patsubst lib/%,$(INST_LUALIBDIR)/%,$(filter-out lib/$(PACKAGE_NAME).lua,$(LUASRCS)))
-MAINLIB = $(if $(wildcard lib/$(PACKAGE_NAME).lua),$(INST_LUADIR)/$(PACKAGE_NAME).lua)
 
 # Coverage flags
 ifdef MEASURE_COVERAGE
 COVFLAGS = --coverage
 endif
 
-.PHONY: all install clean
+.PHONY: all install clean show-vars test
 
-all: $(if $(SRCS),$(SOBJ))
+all: $(COBJS)
 
 clean:
-	rm -f $(SOBJ) src/*.o src/*.gcda src/*.gcno
+	rm -f $(COBJS)
+	find src -name "*.o" -delete
+	find src -name "*.gcda" -delete
+	find src -name "*.gcno" -delete
 
 %.o: %.c
 	$(CC) $(CFLAGS) $(WARNINGS) $(COVFLAGS) $(CPPFLAGS) -o $@ -c $<
@@ -30,31 +35,44 @@ clean:
 %.$(LIB_EXTENSION): %.o
 	$(CC) -o $@ $^ $(LDFLAGS) $(PLATFORM_LDFLAGS) $(COVFLAGS)
 
-# Common rule for installing Lua files
-define INSTALL_LUA_FILE
+# Common installation rule
+define INSTALL_LIBS
 	@mkdir -p $(@D)
 	@echo "Installing $< -> $@"
 	@install $< $@
 endef
 
+# Lua files installation
 $(INST_LUALIBDIR)/%: lib/%
-	$(INSTALL_LUA_FILE)
+	$(INSTALL_LIBS)
 
 ifneq ($(MAINLIB),)
 $(MAINLIB): lib/$(PACKAGE_NAME).lua
-	$(INSTALL_LUA_FILE)
+	$(INSTALL_LIBS)
 endif
 
-install: $(LUALIBS) $(MAINLIB)
-	@echo "Installing Lua libraries to $(INST_LUALIBDIR)..."
-ifneq ($(MAINLIB),)
-	@echo "Installing main library to $(INST_LUADIR)..."
-endif
-ifneq ($(strip $(SRCS)),)
-	@echo "Installing C libraries to $(INST_CLIBDIR)..."
-	@install -d $(INST_CLIBDIR)
-	@install $(SOBJ) $(INST_CLIBDIR)/
-	@rm -f $(SOBJ) src/*.gcda
-else
-	@echo "No C source files found, skipping C library installation"
-endif
+# C libraries installation - pattern rule magic!
+$(INST_CLIBDIR)/%: src/%
+	$(INSTALL_LIBS)
+
+# Install all
+install: $(LUALIBS) $(MAINLIB) $(CLIBS)
+	@echo "Installation complete"
+	# Clean up .so, .o and .gcda files in the source directory
+	find src -name "*.so" -delete
+	find src -name "*.o" -delete
+	find src -name "*.gcda" -delete
+
+# Debug variables
+show-vars:
+	@echo "=== Build Variables ==="
+	@echo "CSRCS: $(CSRCS)"
+	@echo "COBJS: $(COBJS)"
+	@echo "CLIBS: $(CLIBS)"
+	@echo "LUASRCS: $(LUASRCS)"
+	@echo "LUALIBS: $(LUALIBS)"
+
+# Test functionality
+test: all
+	@echo "Running tests..."
+	testcase test/
