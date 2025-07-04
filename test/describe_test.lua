@@ -40,9 +40,9 @@ function testcase.options()
         context = {
             foo = 'bar',
         },
-        repeats = 10,
         warmup = 5,
-        sample_size = 100,
+        confidence_level = 95,
+        rciw = 5,
     })
     assert.is_true(ok)
     assert.is_nil(err)
@@ -54,15 +54,11 @@ function testcase.options()
         context = function()
             return {}
         end,
-        repeats = function()
-            return 10
-        end,
         warmup = function()
             return 5
         end,
-        sample_size = function()
-            return 100
-        end,
+        confidence_level = 95,
+        rciw = 5,
     })
     assert.is_true(ok)
     assert.is_nil(err)
@@ -124,29 +120,32 @@ function testcase.options()
     assert.is_false(ok)
     assert.equal(err, 'options.context must be a table or a function')
 
-    -- test invalid repeats type
+    -- test invalid confidence_level type
     desc = assert(new_describe('test'))
     ok, err = desc:options({
-        repeats = 'not a number',
+        confidence_level = 'not a number',
     })
     assert.is_false(ok)
-    assert.equal(err, 'options.repeats must be a number or a function')
+    assert.equal(err,
+                 'options.confidence_level must be a number between 0 and 100')
 
-    -- test invalid repeats value (negative)
+    -- test invalid confidence_level value (negative)
     desc = assert(new_describe('test'))
     ok, err = desc:options({
-        repeats = -1,
+        confidence_level = -1,
     })
     assert.is_false(ok)
-    assert.equal(err, 'options.repeats must be a positive integer')
+    assert.equal(err,
+                 'options.confidence_level must be a number between 0 and 100')
 
-    -- test invalid repeats value (float)
+    -- test invalid confidence_level value (too high)
     desc = assert(new_describe('test'))
     ok, err = desc:options({
-        repeats = 1.5,
+        confidence_level = 150,
     })
     assert.is_false(ok)
-    assert.equal(err, 'options.repeats must be a positive integer')
+    assert.equal(err,
+                 'options.confidence_level must be a number between 0 and 100')
 
     -- test invalid warmup type
     desc = assert(new_describe('test'))
@@ -172,21 +171,29 @@ function testcase.options()
     assert.is_true(ok)
     assert.is_nil(err)
 
-    -- test invalid sample_size type
+    -- test invalid rciw type
     desc = assert(new_describe('test'))
     ok, err = desc:options({
-        sample_size = 'not a number',
+        rciw = 'not a number',
     })
     assert.is_false(ok)
-    assert.equal(err, 'options.sample_size must be a number or a function')
+    assert.equal(err, 'options.rciw must be a number between 0 and 100')
 
-    -- test invalid sample_size value (zero)
+    -- test invalid rciw value (zero)
     desc = assert(new_describe('test'))
     ok, err = desc:options({
-        sample_size = 0,
+        rciw = 0,
     })
     assert.is_false(ok)
-    assert.equal(err, 'options.sample_size must be a positive integer')
+    assert.equal(err, 'options.rciw must be a number between 0 and 100')
+
+    -- test invalid rciw value (too high)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        rciw = 150,
+    })
+    assert.is_false(ok)
+    assert.equal(err, 'options.rciw must be a number between 0 and 100')
 end
 
 function testcase.setup()
@@ -404,7 +411,8 @@ function testcase.complete_workflow()
     local desc = assert(new_describe('complete test'))
     assert(desc:options({
         warmup = 10,
-        sample_size = 100,
+        confidence_level = 95,
+        rciw = 5,
     }))
     assert(desc:setup(function(i, _)
         return 'test' .. i
