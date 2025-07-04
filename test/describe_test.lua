@@ -11,7 +11,9 @@ function testcase.new_describe()
     assert.is_nil(desc.spec.namefn)
 
     -- test create with namefn
-    local namefn = function(i) return 'test ' .. i end
+    local namefn = function(i)
+        return 'test ' .. i
+    end
     desc = assert(new_describe('test benchmark', namefn))
     assert.equal(desc.spec.name, 'test benchmark')
     assert.equal(desc.spec.namefn, namefn)
@@ -35,10 +37,12 @@ function testcase.options()
 
     -- test valid options
     local ok, err = desc:options({
-        context = { foo = 'bar' },
+        context = {
+            foo = 'bar',
+        },
         repeats = 10,
         warmup = 5,
-        sample_size = 100
+        sample_size = 100,
     })
     assert.is_true(ok)
     assert.is_nil(err)
@@ -47,10 +51,18 @@ function testcase.options()
     -- test options with function values
     desc = assert(new_describe('test'))
     ok, err = desc:options({
-        context = function() return {} end,
-        repeats = function() return 10 end,
-        warmup = function() return 5 end,
-        sample_size = function() return 100 end
+        context = function()
+            return {}
+        end,
+        repeats = function()
+            return 10
+        end,
+        warmup = function()
+            return 5
+        end,
+        sample_size = function()
+            return 100
+        end,
     })
     assert.is_true(ok)
     assert.is_nil(err)
@@ -70,90 +82,117 @@ function testcase.options()
 
     -- test must be defined before setup
     desc = assert(new_describe('test'))
-    assert(desc:setup(function() end))
+    assert(desc:setup(function()
+    end))
     ok, err = desc:options({})
     assert.is_false(ok)
-    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or run_with_timer()')
+    assert.equal(err,
+                 'options must be defined before setup(), setup_once(), run() or run_with_timer()')
 
     -- test must be defined before setup_once
     desc = assert(new_describe('test'))
-    assert(desc:setup_once(function() end))
+    assert(desc:setup_once(function()
+    end))
     ok, err = desc:options({})
     assert.is_false(ok)
-    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or run_with_timer()')
+    assert.equal(err,
+                 'options must be defined before setup(), setup_once(), run() or run_with_timer()')
 
     -- test must be defined before run
     desc = assert(new_describe('test'))
-    assert(desc:run(function() end))
+    assert(desc:run(function()
+    end))
     ok, err = desc:options({})
     assert.is_false(ok)
-    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or run_with_timer()')
+    assert.equal(err,
+                 'options must be defined before setup(), setup_once(), run() or run_with_timer()')
 
     -- test must be defined before run_with_timer
     desc = assert(new_describe('test'))
-    assert(desc:run_with_timer(function() end))
+    assert(desc:run_with_timer(function()
+    end))
     ok, err = desc:options({})
     assert.is_false(ok)
-    assert.equal(err, 'options must be defined before setup(), setup_once(), run() or run_with_timer()')
+    assert.equal(err,
+                 'options must be defined before setup(), setup_once(), run() or run_with_timer()')
 
     -- test invalid context type
     desc = assert(new_describe('test'))
-    ok, err = desc:options({ context = 123 })
+    ok, err = desc:options({
+        context = 123,
+    })
     assert.is_false(ok)
     assert.equal(err, 'options.context must be a table or a function')
 
     -- test invalid repeats type
     desc = assert(new_describe('test'))
-    ok, err = desc:options({ repeats = 'not a number' })
+    ok, err = desc:options({
+        repeats = 'not a number',
+    })
     assert.is_false(ok)
     assert.equal(err, 'options.repeats must be a number or a function')
 
     -- test invalid repeats value (negative)
     desc = assert(new_describe('test'))
-    ok, err = desc:options({ repeats = -1 })
+    ok, err = desc:options({
+        repeats = -1,
+    })
     assert.is_false(ok)
     assert.equal(err, 'options.repeats must be a positive integer')
 
     -- test invalid repeats value (float)
     desc = assert(new_describe('test'))
-    ok, err = desc:options({ repeats = 1.5 })
+    ok, err = desc:options({
+        repeats = 1.5,
+    })
     assert.is_false(ok)
     assert.equal(err, 'options.repeats must be a positive integer')
 
     -- test invalid warmup type
     desc = assert(new_describe('test'))
-    ok, err = desc:options({ warmup = 'not a number' })
+    ok, err = desc:options({
+        warmup = 'not a number',
+    })
     assert.is_false(ok)
     assert.equal(err, 'options.warmup must be a number or a function')
 
     -- test invalid warmup value (negative)
     desc = assert(new_describe('test'))
-    ok, err = desc:options({ warmup = -1 })
+    ok, err = desc:options({
+        warmup = -1,
+    })
     assert.is_false(ok)
     assert.equal(err, 'options.warmup must be a non-negative integer')
 
     -- test valid warmup value (zero)
     desc = assert(new_describe('test'))
-    ok, err = desc:options({ warmup = 0 })
+    ok, err = desc:options({
+        warmup = 0,
+    })
     assert.is_true(ok)
     assert.is_nil(err)
 
     -- test invalid sample_size type
     desc = assert(new_describe('test'))
-    ok, err = desc:options({ sample_size = 'not a number' })
+    ok, err = desc:options({
+        sample_size = 'not a number',
+    })
     assert.is_false(ok)
     assert.equal(err, 'options.sample_size must be a number or a function')
 
     -- test invalid sample_size value (zero)
     desc = assert(new_describe('test'))
-    ok, err = desc:options({ sample_size = 0 })
+    ok, err = desc:options({
+        sample_size = 0,
+    })
     assert.is_false(ok)
     assert.equal(err, 'options.sample_size must be a positive integer')
 end
 
 function testcase.setup()
     local desc = assert(new_describe('test'))
-    local setup_fn = function() end
+    local setup_fn = function()
+    end
 
     -- test valid setup
     local ok, err = desc:setup(setup_fn)
@@ -176,21 +215,24 @@ function testcase.setup()
 
     -- test cannot define if setup_once is defined
     desc = assert(new_describe('test'))
-    assert(desc:setup_once(function() end))
+    assert(desc:setup_once(function()
+    end))
     ok, err = desc:setup(setup_fn)
     assert.is_false(ok)
     assert.equal(err, 'cannot be defined if setup_once() is defined')
 
     -- test must be defined before run
     desc = assert(new_describe('test'))
-    assert(desc:run(function() end))
+    assert(desc:run(function()
+    end))
     ok, err = desc:setup(setup_fn)
     assert.is_false(ok)
     assert.equal(err, 'must be defined before run() or run_with_timer()')
 
     -- test must be defined before run_with_timer
     desc = assert(new_describe('test'))
-    assert(desc:run_with_timer(function() end))
+    assert(desc:run_with_timer(function()
+    end))
     ok, err = desc:setup(setup_fn)
     assert.is_false(ok)
     assert.equal(err, 'must be defined before run() or run_with_timer()')
@@ -198,7 +240,8 @@ end
 
 function testcase.setup_once()
     local desc = assert(new_describe('test'))
-    local setup_once_fn = function() end
+    local setup_once_fn = function()
+    end
 
     -- test valid setup_once
     local ok, err = desc:setup_once(setup_once_fn)
@@ -221,21 +264,24 @@ function testcase.setup_once()
 
     -- test cannot define if setup is defined
     desc = assert(new_describe('test'))
-    assert(desc:setup(function() end))
+    assert(desc:setup(function()
+    end))
     ok, err = desc:setup_once(setup_once_fn)
     assert.is_false(ok)
     assert.equal(err, 'cannot be defined if setup() is defined')
 
     -- test must be defined before run
     desc = assert(new_describe('test'))
-    assert(desc:run(function() end))
+    assert(desc:run(function()
+    end))
     ok, err = desc:setup_once(setup_once_fn)
     assert.is_false(ok)
     assert.equal(err, 'must be defined before run() or run_with_timer()')
 
     -- test must be defined before run_with_timer
     desc = assert(new_describe('test'))
-    assert(desc:run_with_timer(function() end))
+    assert(desc:run_with_timer(function()
+    end))
     ok, err = desc:setup_once(setup_once_fn)
     assert.is_false(ok)
     assert.equal(err, 'must be defined before run() or run_with_timer()')
@@ -243,7 +289,8 @@ end
 
 function testcase.run()
     local desc = assert(new_describe('test'))
-    local run_fn = function() end
+    local run_fn = function()
+    end
 
     -- test valid run
     local ok, err = desc:run(run_fn)
@@ -266,7 +313,8 @@ function testcase.run()
 
     -- test cannot define if run_with_timer is defined
     desc = assert(new_describe('test'))
-    assert(desc:run_with_timer(function() end))
+    assert(desc:run_with_timer(function()
+    end))
     ok, err = desc:run(run_fn)
     assert.is_false(ok)
     assert.equal(err, 'cannot be defined if run_with_timer() is defined')
@@ -274,7 +322,8 @@ end
 
 function testcase.run_with_timer()
     local desc = assert(new_describe('test'))
-    local run_with_timer_fn = function() end
+    local run_with_timer_fn = function()
+    end
 
     -- test valid run_with_timer
     local ok, err = desc:run_with_timer(run_with_timer_fn)
@@ -297,7 +346,8 @@ function testcase.run_with_timer()
 
     -- test cannot define if run is defined
     desc = assert(new_describe('test'))
-    assert(desc:run(function() end))
+    assert(desc:run(function()
+    end))
     ok, err = desc:run_with_timer(run_with_timer_fn)
     assert.is_false(ok)
     assert.equal(err, 'cannot be defined if run() is defined')
@@ -305,10 +355,12 @@ end
 
 function testcase.teardown()
     local desc = assert(new_describe('test'))
-    local teardown_fn = function() end
+    local teardown_fn = function()
+    end
 
     -- test valid teardown after run
-    assert(desc:run(function() end))
+    assert(desc:run(function()
+    end))
     local ok, err = desc:teardown(teardown_fn)
     assert.is_true(ok)
     assert.is_nil(err)
@@ -316,7 +368,8 @@ function testcase.teardown()
 
     -- test valid teardown after run_with_timer
     desc = assert(new_describe('test'))
-    assert(desc:run_with_timer(function() end))
+    assert(desc:run_with_timer(function()
+    end))
     ok, err = desc:teardown(teardown_fn)
     assert.is_true(ok)
     assert.is_nil(err)
@@ -324,14 +377,16 @@ function testcase.teardown()
 
     -- test invalid argument type
     desc = assert(new_describe('test'))
-    assert(desc:run(function() end))
+    assert(desc:run(function()
+    end))
     ok, err = desc:teardown('not a function')
     assert.is_false(ok)
     assert.equal(err, 'argument must be a function')
 
     -- test cannot define twice
     desc = assert(new_describe('test'))
-    assert(desc:run(function() end))
+    assert(desc:run(function()
+    end))
     assert(desc:teardown(teardown_fn))
     ok, err = desc:teardown(teardown_fn)
     assert.is_false(ok)
@@ -347,10 +402,18 @@ end
 function testcase.complete_workflow()
     -- test typical workflow with options, setup, run, teardown
     local desc = assert(new_describe('complete test'))
-    assert(desc:options({ warmup = 10, sample_size = 100 }))
-    assert(desc:setup(function(i, _) return 'test' .. i end))
-    assert(desc:run(function(data) return data .. data end))
-    assert(desc:teardown(function(_) end))
+    assert(desc:options({
+        warmup = 10,
+        sample_size = 100,
+    }))
+    assert(desc:setup(function(i, _)
+        return 'test' .. i
+    end))
+    assert(desc:run(function(data)
+        return data .. data
+    end))
+    assert(desc:teardown(function(_)
+    end))
 
     -- verify all spec fields are set
     assert.is_table(desc.spec.options)
@@ -361,9 +424,19 @@ function testcase.complete_workflow()
     assert.is_nil(desc.spec.run_with_timer)
 
     -- test workflow with setup_once and run_with_timer
-    desc = assert(new_describe('test with setup_once', function(i) return 'iteration ' .. i end))
-    assert(desc:options({ context = { multiplier = 2 } }))
-    assert(desc:setup_once(function() return { data = 'shared' } end))
+    desc = assert(new_describe('test with setup_once', function(i)
+        return 'iteration ' .. i
+    end))
+    assert(desc:options({
+        context = {
+            multiplier = 2,
+        },
+    }))
+    assert(desc:setup_once(function()
+        return {
+            data = 'shared',
+        }
+    end))
     assert(desc:run_with_timer(function(_, _, _)
         local start = os.clock()
         -- do work
