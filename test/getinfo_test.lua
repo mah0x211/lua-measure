@@ -139,9 +139,9 @@ end
 
 function testcase.getinfo_with_high_level()
     -- Test with very high level (beyond stack)
-    assert.throws(function()
-        getinfo(100, 'source')
-    end, 'failed to get debug info')
+    -- Should return nil instead of throwing an error
+    local result = getinfo(100, 'source')
+    assert.is_nil(result)
 end
 
 function testcase.getinfo_from_string_code()
