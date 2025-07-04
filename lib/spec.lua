@@ -22,11 +22,11 @@
 -- Module: measure.spec
 -- This module manages benchmark specifications
 --
-local new_describe = require('measure.describe')
 local type = type
 local format = string.format
 local setmetatable = setmetatable
 local concat = table.concat
+local new_describe = require('measure.describe')
 
 --- @alias measure.spec.hookname "before_all"|"before_each"|"after_each"|"after_all"
 
