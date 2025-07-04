@@ -32,9 +32,9 @@ local getinfo = require('measure.getinfo')
 
 --- @class measure.describe.spec.options
 --- @field context table|function|nil Context for the benchmark
---- @field repeats number|function|nil Number of repeats for the benchmark
 --- @field warmup number|function|nil Warmup iterations before measuring
---- @field sample_size number|function|nil Sample size for the benchmark
+--- @field confidence_level number|nil confidence level in percentage (0-100, default: 95)
+--- @field rciw number|nil relative confidence interval width in percentage (0-100, default: 5)
 
 --- @class measure.describe.spec
 --- @field name string The name of the benchmark
@@ -71,18 +71,6 @@ local function validate_options(opts)
         end
     end
 
-    -- Validate repeats
-    if opts.repeats ~= nil then
-        local t = type(opts.repeats)
-        if t ~= 'number' and t ~= 'function' then
-            return false, 'options.repeats must be a number or a function'
-        end
-        if t == 'number' and
-            (opts.repeats <= 0 or opts.repeats ~= floor(opts.repeats)) then
-            return false, 'options.repeats must be a positive integer'
-        end
-    end
-
     -- Validate warmup
     if opts.warmup ~= nil then
         local t = type(opts.warmup)
@@ -95,16 +83,20 @@ local function validate_options(opts)
         end
     end
 
-    -- Validate sample_size
-    if opts.sample_size ~= nil then
-        local t = type(opts.sample_size)
-        if t ~= 'number' and t ~= 'function' then
-            return false, 'options.sample_size must be a number or a function'
+    -- Validate confidence level
+    if opts.confidence_level ~= nil then
+        local v = opts.confidence_level
+        if type(v) ~= 'number' or v <= 0 or v > 100 then
+            return false,
+                   'options.confidence_level must be a number between 0 and 100'
         end
-        if t == 'number' and
-            (opts.sample_size <= 0 or opts.sample_size ~=
-                floor(opts.sample_size)) then
-            return false, 'options.sample_size must be a positive integer'
+    end
+
+    -- Validate relative confidence interval width (RCIW)
+    if opts.rciw ~= nil then
+        local v = opts.rciw
+        if type(v) ~= 'number' or v <= 0 or v > 100 then
+            return false, 'options.rciw must be a number between 0 and 100'
         end
     end
 
