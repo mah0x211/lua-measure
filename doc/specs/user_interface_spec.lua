@@ -73,19 +73,15 @@ end).options({
     --     }
     -- end,
 
-    -- repeats is the number of times the benchmark will be run.
-    -- It is used to run the benchmark multiple times to get a more accurate result
-    -- If not specified, it defaults to 1
-    repeats = 5,
-    -- You can also define a function to calculate the repeats value.
-    -- This function will be called with the current repeat count and context
-    -- and should return a number to be used as the repeats value.
-    -- This function is useful if you want to calculate the repeats value based
-    -- on the current repeat count or context.
-    -- If you don't pass a function, it will use the default repeats value of 1.
-    -- repeats = function(i, ctx)
-    --     return 5
-    -- end,
+    -- confidence_level is the statistical confidence level for adaptive sampling
+    -- It is used to determine the precision of confidence intervals (0-100)
+    -- If not specified, it defaults to 95 (95%)
+    confidence_level = 95,
+    
+    -- rciw is the target relative confidence interval width for adaptive sampling
+    -- It is used to determine when sufficient samples have been collected (0-100)
+    -- If not specified, it defaults to 5 (5%)
+    rciw = 5,
 
     -- warmup is the number of warmup iterations before the benchmark run.
     -- It is used to warm up the system before the benchmark run
@@ -97,16 +93,6 @@ end).options({
     --     return 5
     -- end,
 
-    -- sample_size is the number of samples to take for the benchmark
-    -- It is used to get a more accurate result by taking multiple samples
-    -- If not specified, it defaults to 10000.
-    sample_size = 10000,
-    -- You can also define a function to calculate the sample_size value.
-    -- This function will be called with the current repeat count and context
-    -- and should return a number to be used as the sample_size value.
-    -- sample_size = function(i, ctx)
-    --     return 10000
-    -- end,
 }) --
 --
 -- NOTE:
