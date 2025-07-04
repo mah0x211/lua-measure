@@ -27,6 +27,7 @@ local type = type
 local format = string.format
 local match = string.match
 local gsub = string.gsub
+local sub = string.sub
 local lower = string.lower
 local open = io.open
 local error = error
@@ -83,8 +84,12 @@ end
 local function extract_filename(source)
     -- get basename from source
     local name = match(source, '([^/\\]+)$')
-    -- replace @ prefix to PWD
-    local pathname = realpath(gsub(source, '^@', PWD .. '/'))
+    local pathname = gsub(source, '^@', '')
+    if sub(pathname, 1, 1) ~= '/' then
+        -- if pathname is not absolute, prepend PWD
+        pathname = PWD .. '/' .. pathname
+    end
+    pathname = realpath(pathname)
     return name, pathname
 end
 
