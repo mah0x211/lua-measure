@@ -26,6 +26,7 @@ local type = type
 local format = string.format
 local setmetatable = setmetatable
 local concat = table.concat
+local tostring = tostring
 local new_describe = require('measure.describe')
 
 --- @alias measure.spec.hookname "before_all"|"before_each"|"after_each"|"after_all"
@@ -70,6 +71,30 @@ function Spec:set_hook(name, fn)
     end
 
     self.hooks[name] = fn
+    return true
+end
+
+--- Verify the last describe object
+--- @return boolean ok true if the last describe has a valid run function
+--- @return string[]? err Error message if the last describe is invalid
+function Spec:verify_describes()
+    local errs = {}
+    for _, desc in ipairs(self.describes) do
+        if type(desc.spec.run) ~= 'function' and type(desc.spec.run_with_timer) ~=
+            'function' then
+            -- Collect error message for invalid describe
+            errs[#errs + 1] = format(
+                                  '%s:%d: %s has not defined a run() or run_with_timer() function',
+                                  desc.fileinfo.source, desc.fileinfo.lineno,
+                                  tostring(desc))
+        end
+    end
+
+    if #errs > 0 then
+        -- Return all collected errors as a single string
+        return false, errs
+    end
+
     return true
 end
 
