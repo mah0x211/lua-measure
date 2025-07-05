@@ -247,3 +247,132 @@ function testcase.spec_independence()
     assert.is_nil(spec1.describes['Test B'])
     assert.is_nil(spec2.describes['Test A'])
 end
+
+function testcase.verify_describes_with_valid_run_function()
+    local spec = new_spec()
+
+    -- Create describe with run function
+    local desc = spec:new_describe('Test with run')
+    desc:run(function()
+        -- Benchmark code
+    end)
+
+    -- Verify should succeed
+    local ok, err = spec:verify_describes()
+    assert.is_true(ok)
+    assert.is_nil(err)
+end
+
+function testcase.verify_describes_with_valid_run_with_timer_function()
+    local spec = new_spec()
+
+    -- Create describe with run_with_timer function
+    local desc = spec:new_describe('Test with run_with_timer')
+    desc:run_with_timer(function()
+        -- Benchmark code with timer
+    end)
+
+    -- Verify should succeed
+    local ok, err = spec:verify_describes()
+    assert.is_true(ok)
+    assert.is_nil(err)
+end
+
+function testcase.verify_describes_with_both_run_functions()
+    local spec = new_spec()
+
+    -- Create describe with run function
+    local desc1 = spec:new_describe('Test 1')
+    desc1:run(function()
+        -- Benchmark code
+    end)
+
+    -- Create describe with run_with_timer function
+    local desc2 = spec:new_describe('Test 2')
+    desc2:run_with_timer(function()
+        -- Benchmark code with timer
+    end)
+
+    -- Verify should succeed
+    local ok, err = spec:verify_describes()
+    assert.is_true(ok)
+    assert.is_nil(err)
+end
+
+function testcase.verify_describes_without_run_functions()
+    local spec = new_spec()
+
+    -- Create describe without run function
+    spec:new_describe('Test without run')
+
+    -- Verify should fail
+    local ok, errs = spec:verify_describes()
+    assert.is_false(ok)
+    assert.is_table(errs)
+    assert.equal(#errs, 1)
+    -- Error message should contain source file and line number
+    assert.match(errs[1],
+                 'measure%.describe "Test without run" has not defined a run%(%) or run_with_timer%(%) function',
+                 false)
+end
+
+function testcase.verify_describes_with_multiple_invalid_describes()
+    local spec = new_spec()
+
+    -- Create multiple describes without run functions
+    spec:new_describe('Invalid 1')
+    spec:new_describe('Invalid 2')
+    spec:new_describe('Invalid 3')
+
+    -- Verify should fail with multiple errors
+    local ok, errs = spec:verify_describes()
+    assert.is_false(ok)
+    assert.is_table(errs)
+    assert.equal(#errs, 3)
+    assert.match(errs[1],
+                 'measure%.describe "Invalid 1" has not defined a run%(%) or run_with_timer%(%) function',
+                 false)
+    assert.match(errs[2],
+                 'measure%.describe "Invalid 2" has not defined a run%(%) or run_with_timer%(%) function',
+                 false)
+    assert.match(errs[3],
+                 'measure%.describe "Invalid 3" has not defined a run%(%) or run_with_timer%(%) function',
+                 false)
+end
+
+function testcase.verify_describes_with_empty_describes()
+    local spec = new_spec()
+
+    -- Verify with no describes should succeed
+    local ok, err = spec:verify_describes()
+    assert.is_true(ok)
+    assert.is_nil(err)
+end
+
+function testcase.verify_describes_with_mixed_valid_and_invalid()
+    local spec = new_spec()
+
+    -- Create valid describe
+    local desc1 = spec:new_describe('Valid')
+    desc1:run(function()
+        -- Benchmark code
+    end)
+
+    -- Create invalid describe
+    spec:new_describe('Invalid')
+
+    -- Create another valid describe
+    local desc3 = spec:new_describe('Also Valid')
+    desc3:run_with_timer(function()
+        -- Benchmark code with timer
+    end)
+
+    -- Verify should fail with only invalid describe error
+    local ok, errs = spec:verify_describes()
+    assert.is_false(ok)
+    assert.is_table(errs)
+    assert.equal(#errs, 1)
+    assert.match(errs[1],
+                 'measure%.describe "Invalid" has not defined a run%(%) or run_with_timer%(%) function',
+                 false)
+end

@@ -23,6 +23,7 @@ local type = type
 local find = string.find
 local sub = string.sub
 local format = string.format
+local concat = table.concat
 local pcall = pcall
 local popen = io.popen
 local loadfile = loadfile
@@ -109,13 +110,21 @@ local function loadfiles(pathname)
         registry.clear()
         for k, spec in pairs(specs) do
             -- if suffix is equal to filename, then it is registered
-            if sub(k, -#filename) == filename then
-                files[#files + 1] = {
-                    filename = filename,
-                    spec = spec,
-                }
+            if sub(k, -#filename) ~= filename then
+                print(format('> ignore an invalid entry %s for %s', k, filename))
             else
-                print(format('ignore an invalid entry %s for %s', k, filename))
+                -- check if the spec is valid
+                local errs
+                ok, errs = spec:verify_describes()
+                if not ok then
+                    print(format('> ignore an invalid spec %s', filename))
+                    print('> ' .. concat(errs, '\n> '))
+                else
+                    files[#files + 1] = {
+                        filename = filename,
+                        spec = spec,
+                    }
+                end
             end
         end
     end

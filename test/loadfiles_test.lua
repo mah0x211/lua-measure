@@ -358,6 +358,145 @@ function testcase.error_message_handling()
                    'Should print error messages for failed files')
 end
 
+function testcase.verify_describes_validation()
+    -- Test that loadfiles validates describes using verify_describes()
+
+    -- Create a test file with invalid describe (no run method)
+    local test_file = 'tmp/invalid_describe_bench.lua'
+    local content = [[
+local measure = require('measure')
+
+measure.describe("invalid_describe")
+-- No run() or run_with_timer() method defined
+]]
+    create_file(test_file, content)
+
+    -- Capture print output to check for validation messages
+    local captured_output = capture_print()
+
+    -- Load the file
+    local files = loadfiles(test_file)
+
+    -- The file should be ignored due to validation failure
+    assert.equal(#files, 0, 'Invalid describe should not be included in results')
+
+    -- Check that appropriate messages were printed
+    local found_loading_msg = false
+    local found_ignore_msg = false
+    local found_error_details = false
+
+    for _, msg in ipairs(captured_output) do
+        if msg:match('loading .*invalid_describe_bench%.lua') then
+            found_loading_msg = true
+        elseif msg:match('> ignore an invalid spec') then
+            found_ignore_msg = true
+        elseif msg:match(
+            'has not defined a run%(%) or run_with_timer%(%) function') then
+            found_error_details = true
+        end
+    end
+
+    assert.is_true(found_loading_msg, 'Should print loading message')
+    assert.is_true(found_ignore_msg,
+                   'Should print ignore message for invalid spec')
+    assert.is_true(found_error_details,
+                   'Should print specific validation error details')
+end
+
+function testcase.mixed_valid_invalid_describes()
+    -- Test file with both valid and invalid describes
+
+    -- Create test files in a directory
+    create_dir('tmp/mixed_describes')
+
+    -- File with valid describes
+    local valid_content = [[
+local measure = require('measure')
+
+measure.describe("valid_test").run(function()
+    return "ok"
+end)
+]]
+    create_file('tmp/mixed_describes/valid_bench.lua', valid_content)
+
+    -- File with invalid describes
+    local invalid_content = [[
+local measure = require('measure')
+
+measure.describe("invalid_test")
+-- Missing run() method
+]]
+    create_file('tmp/mixed_describes/invalid_bench.lua', invalid_content)
+
+    -- Capture print output
+    local captured_output = capture_print()
+
+    -- Load the directory
+    local files = loadfiles('tmp/mixed_describes')
+
+    -- Should only get the valid file
+    assert.equal(#files, 1, 'Should only include valid benchmark files')
+    assert.match(files[1].filename, 'valid_bench%.lua$', false)
+
+    -- Check that invalid file was detected and ignored
+    local found_invalid_ignore = false
+    for _, msg in ipairs(captured_output) do
+        if msg:match('ignore an invalid spec.*invalid_bench%.lua') then
+            found_invalid_ignore = true
+            break
+        end
+    end
+
+    assert.is_true(found_invalid_ignore, 'Should ignore invalid benchmark file')
+end
+
+function testcase.multiple_describes_in_file()
+    -- Test file with multiple describes where some are invalid
+
+    local test_file = 'tmp/multi_describe_bench.lua'
+    local content = [[
+local measure = require('measure')
+
+-- First describe is valid
+measure.describe("valid_describe").run(function()
+    return "test1"
+end)
+
+-- Second describe is invalid (no run method)
+measure.describe("invalid_describe")
+
+-- Third describe is valid with run_with_timer
+measure.describe("timer_describe").run_with_timer(function(timer)
+    timer:start()
+    -- do work
+    timer:stop()
+end)
+]]
+    create_file(test_file, content)
+
+    -- Capture print output
+    local captured_output = capture_print()
+
+    -- Load the file
+    local files = loadfiles(test_file)
+
+    -- The entire file should be ignored because it has an invalid describe
+    assert.equal(#files, 0, 'File with any invalid describe should be ignored')
+
+    -- Check for validation error message
+    local found_validation_error = false
+    for _, msg in ipairs(captured_output) do
+        if msg:match(
+            'invalid_describe.*has not defined a run%(%) or run_with_timer%(%) function') then
+            found_validation_error = true
+            break
+        end
+    end
+
+    assert.is_true(found_validation_error,
+                   'Should report validation error for invalid describe')
+end
+
 function testcase.directory_listing_error()
     -- Test handling of directory listing errors
 
