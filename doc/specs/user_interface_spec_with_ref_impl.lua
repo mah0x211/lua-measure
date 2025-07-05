@@ -49,9 +49,9 @@ function BenchmarkDescribe:options(opts)
         return false, 'options.confidence_level must be a number between 0 and 100'
     end
 
-    if opts.warmup and type(opts.warmup) ~= 'number' and type(opts.warmup) ~=
-        'function' then
-        return false, 'options.warmup must be a number or a function'
+    if opts.warmup and (type(opts.warmup) ~= 'number' or opts.warmup < 0 or
+        opts.warmup > 5) then
+        return false, 'options.warmup must be a number between 0 and 5'
     end
 
     if opts.rciw and (type(opts.rciw) ~= 'number' or opts.rciw <= 0 or
@@ -429,6 +429,11 @@ end).options({
     -- It is used to determine when sufficient samples have been collected (0-100)
     -- If not specified, it defaults to 5 (5%)
     rciw = 5,
+
+    -- gc_step is the garbage collection step size for sampling
+    -- 0 = full GC, -1 = disabled GC, positive value = step GC in KB
+    -- If not specified, it defaults to 0 (full GC)
+    gc_step = 0,
 
     -- warmup is the number of warmup iterations before the benchmark run.
     -- It is used to warm up the system before the benchmark run

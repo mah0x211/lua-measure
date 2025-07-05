@@ -83,6 +83,11 @@ end).options({
     -- If not specified, it defaults to 5 (5%)
     rciw = 5,
 
+    -- gc_step is the garbage collection step size for sampling
+    -- 0 = full GC, -1 = disabled GC, positive value = step GC in KB
+    -- If not specified, it defaults to 0 (full GC)
+    gc_step = 0,
+
     -- warmup is the number of warmup iterations before the benchmark run.
     -- It is used to warm up the system before the benchmark run
     warmup = 5,
