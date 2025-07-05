@@ -118,7 +118,7 @@ static void new_measure_samples(lua_State *L, size_t capacity, int gc_step,
     memset(s, 0, sizeof(measure_samples_t));
     s->ref_data = LUA_NOREF;
     s->capacity = (size_t)capacity;
-    s->gc_step  = (gc_step < 0) ? 0 : (int)gc_step;
+    s->gc_step  = (gc_step < 0) ? -1 : (int)gc_step;
     luaL_getmetatable(L, MEASURE_SAMPLES_MT);
     lua_setmetatable(L, -2);
 
@@ -181,7 +181,7 @@ static int restore_lua(lua_State *L)
 
     // validate gc_step field
     GET_IVALUE_FIELD("gc_step", 0);
-    gc_step = (iv < 0) ? 0 : (int)iv;
+    gc_step = (iv < 0) ? -1 : (int)iv;
 
     // validate base_kb field
     GET_IVALUE_FIELD("base_kb", iv <= 0, "must be > 0");
