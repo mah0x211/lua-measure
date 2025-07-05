@@ -126,6 +126,7 @@ function testcase.method_chaining_options()
     -- Test method chaining with options
     local result = measure.describe('Test').options({
         warmup = 3,
+        gc_step = 1024,
         confidence_level = 95,
         rciw = 5,
     })
@@ -185,6 +186,7 @@ function testcase.method_chaining_full_sequence()
     -- Test full method chaining sequence
     local result = measure.describe('Full Test').options({
         warmup = 5,
+        gc_step = 0,
         confidence_level = 95,
         rciw = 5,
     }).setup(function()
