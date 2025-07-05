@@ -29,10 +29,13 @@ local sub = string.sub
 local format = string.format
 local floor = math.floor
 local getinfo = require('measure.getinfo')
+local INF_POS = math.huge
+local INF_NEG = -INF_POS
 
 --- @class measure.describe.spec.options
 --- @field context table|function|nil Context for the benchmark
---- @field warmup number|function|nil Warmup iterations before measuring
+--- @field warmup number|nil Warmup iterations before measuring
+--- @field gc_step number|nil Garbage collection step size for sampling
 --- @field confidence_level number|nil confidence level in percentage (0-100, default: 95)
 --- @field rciw number|nil relative confidence interval width in percentage (0-100, default: 5)
 
@@ -73,13 +76,18 @@ local function validate_options(opts)
 
     -- Validate warmup
     if opts.warmup ~= nil then
-        local t = type(opts.warmup)
-        if t ~= 'number' and t ~= 'function' then
-            return false, 'options.warmup must be a number or a function'
+        local v = opts.warmup
+        if type(v) ~= 'number' or v < 0 or v > 5 then
+            return false, 'options.warmup must be a number between 0 and 5'
         end
-        if t == 'number' and
-            (opts.warmup < 0 or opts.warmup ~= floor(opts.warmup)) then
-            return false, 'options.warmup must be a non-negative integer'
+    end
+
+    -- Validate gc_step
+    if opts.gc_step ~= nil then
+        local v = opts.gc_step
+        if type(v) ~= 'number' or v ~= v or v == INF_POS or v == INF_NEG or
+            v ~= floor(v) then
+            return false, 'options.gc_step must be an integer'
         end
     end
 
