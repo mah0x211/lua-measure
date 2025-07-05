@@ -216,6 +216,67 @@ function testcase.options()
     })
     assert.is_false(ok)
     assert.equal(err, 'options.rciw must be a number between 0 and 100')
+
+    -- test valid gc_step values
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = 0, -- full GC
+    })
+    assert.is_true(ok)
+    assert.is_nil(err)
+
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = -1, -- disabled GC
+    })
+    assert.is_true(ok)
+    assert.is_nil(err)
+
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = 1024, -- step GC
+    })
+    assert.is_true(ok)
+    assert.is_nil(err)
+
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = -5, -- negative value (should be accepted)
+    })
+    assert.is_true(ok)
+    assert.is_nil(err)
+
+    -- test invalid gc_step type
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = 'not a number',
+    })
+    assert.is_false(ok)
+    assert.equal(err, 'options.gc_step must be an integer')
+
+    -- test invalid gc_step value (float)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = 1.5,
+    })
+    assert.is_false(ok)
+    assert.equal(err, 'options.gc_step must be an integer')
+
+    -- test invalid gc_step value (infinity)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = math.huge,
+    })
+    assert.is_false(ok)
+    assert.equal(err, 'options.gc_step must be an integer')
+
+    -- test invalid gc_step value (NaN)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = 0 / 0,
+    })
+    assert.is_false(ok)
+    assert.equal(err, 'options.gc_step must be an integer')
 end
 
 function testcase.setup()
