@@ -24,8 +24,11 @@
 -- individual benchmark specifications.
 --
 local type = type
+local find = string.find
+local sub = string.sub
 local format = string.format
 local floor = math.floor
+local getinfo = require('measure.getinfo')
 
 --- @class measure.describe.spec.options
 --- @field context table|function|nil Context for the benchmark
@@ -43,8 +46,14 @@ local floor = math.floor
 --- @field run_with_timer function|nil function to benchmark with timer
 --- @field teardown function|nil Teardown function for cleanup after each iteration
 
+--- @class measure.describe.fileinfo
+--- @field source string The source of the benchmark (e.g., file path)
+--- @field pathname string The pathname of the benchmark file
+--- @field lineno number The line number where the benchmark is defined
+
 --- @class measure.describe
 --- @field spec measure.describe.spec The benchmark specification
+--- @field fileinfo measure.describe.fileinfo? Information about the file where the benchmark is defined
 local Describe = require('measure.metatable')(function(self)
     return format('measure.describe %q', self.spec.name)
 end)
@@ -223,9 +232,9 @@ end
 
 --- Create a new benchmark describe instance
 --- @param name string The name of the benchmark
---- @param namefn function|nil Optional function to generate dynamic names
---- @return measure.describe|nil desc The new describe instance
---- @return string|nil err Error message if failed
+--- @param namefn function? Optional function to generate dynamic names
+--- @return measure.describe? desc The new describe instance
+--- @return string? err Error message if failed
 local function new_describe(name, namefn)
     if type(name) ~= 'string' then
         return nil, format('name must be a string, got %q', type(name))
@@ -234,11 +243,33 @@ local function new_describe(name, namefn)
                format('namefn must be a function or nil, got %q', type(namefn))
     end
 
+    --- Get the current working directory
+    local PWD = assert(io.popen('pwd'):read('*l'))
+    --- Get the file information for the current benchmark
+    --- This will search the call stack for the first Lua file that matches the
+    --- current working directory and has a `.lua` extension.
+    local fileinfo
+    for i = 1, 100 do
+        local info = getinfo(i, 'file', 'source')
+        if not info then
+            break
+        elseif sub(info.file.pathname, 1, #PWD) == PWD and
+            find(info.file.source, '%.lua$') then
+            fileinfo = {
+                source = info.file.source,
+                pathname = info.file.pathname,
+                lineno = info.source.line_current,
+            }
+            break
+        end
+    end
+
     local desc = setmetatable({
         spec = {
             name = name,
             namefn = namefn,
         },
+        fileinfo = fileinfo,
     }, Describe)
     return desc
 end

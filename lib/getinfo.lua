@@ -159,7 +159,7 @@ end
 
 --- Get source information with flexible API
 --- @param ... any (level, field1, field2, ...) or (field1, field2, ...)
---- @return table result The structured source information
+--- @return table? result The structured source information or nil if debug info not available
 local function getinfo(...)
     local narg = select('#', ...)
     if narg == 0 then
@@ -195,7 +195,8 @@ local function getinfo(...)
     -- Get whole debug information
     local info = debug_getinfo(level, 'nSluf')
     if not info then
-        error(format('failed to get debug info for level %d', level), 2)
+        -- If no debug info is available, return nil
+        return
     end
 
     local res = {}
