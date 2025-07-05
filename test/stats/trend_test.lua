@@ -15,6 +15,8 @@ local function create_mock_samples(time_values)
         count = count,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     }
 
     for i, time_ns in ipairs(time_values) do
@@ -187,6 +189,8 @@ function testcase.error_handling()
         count = 0,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     }
     local empty_samples = samples(empty_data)
     assert.throws(function()

@@ -61,6 +61,12 @@ static int dump_lua(lua_State *L)
     lua_pushinteger(L, s->gc_step);
     lua_setfield(L, 2, "gc_step");
 
+    lua_pushnumber(L, s->cl);
+    lua_setfield(L, 2, "cl");
+
+    lua_pushnumber(L, s->rciw);
+    lua_setfield(L, 2, "rciw");
+
     lua_pushinteger(L, s->base_kb);
     lua_setfield(L, 2, "base_kb");
 
@@ -71,6 +77,20 @@ static int count_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
     lua_pushinteger(L, s->count);
+    return 1;
+}
+
+static int rciw_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    lua_pushnumber(L, s->rciw);
+    return 1;
+}
+
+static int cl_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    lua_pushnumber(L, s->cl);
     return 1;
 }
 
@@ -113,11 +133,11 @@ static int gc_lua(lua_State *L)
  * @param L Lua state
  * @param capacity Capacity of the samples array
  * @param gc_step GC step size in KB (0 for full GC)
- * @param ptr Pointer to store the created measure_samples_t object (optional)
- * @return Number of results pushed onto the stack (1 for the new object)
+ * @return Pointer to the new measure_samples_t userdata object
  */
-static void new_measure_samples(lua_State *L, size_t capacity, int gc_step,
-                                measure_samples_t **ptr)
+static measure_samples_t *new_measure_samples(lua_State *L, size_t capacity,
+                                              int gc_step, double cl,
+                                              double rciw)
 {
     // create new measure_samples_t userdata object
     measure_samples_t *s = lua_newuserdata(L, sizeof(measure_samples_t));
@@ -126,6 +146,8 @@ static void new_measure_samples(lua_State *L, size_t capacity, int gc_step,
     s->ref_data = LUA_NOREF;
     s->capacity = (size_t)capacity;
     s->gc_step  = (gc_step < 0) ? -1 : (int)gc_step;
+    s->cl       = cl;
+    s->rciw     = rciw;
     luaL_getmetatable(L, MEASURE_SAMPLES_MT);
     lua_setmetatable(L, -2);
 
@@ -136,10 +158,7 @@ static void new_measure_samples(lua_State *L, size_t capacity, int gc_step,
     // Initialize the data array to zero
     memset(s->data, 0, sizeof(measure_samples_data_t) * s->capacity);
 
-    // If ptr is provided, set it to point to the new samples object
-    if (ptr) {
-        *ptr = s;
-    }
+    return s;
 }
 
 #if LUA_VERSION_NUM < 502
@@ -158,9 +177,27 @@ static int restore_lua(lua_State *L)
     size_t capacity      = 0;
     size_t count         = 0;
     int gc_step          = 0;
+    double cl            = 0;
+    double rciw          = 0;
     size_t base_kb       = 0;
     lua_Integer iv       = 0;
+    lua_Number dv        = 0;
     int top              = 0;
+
+#define GET_DVALUE_FIELD(field_name, cond, ...)                                \
+    do {                                                                       \
+        lua_getfield(L, 1, (field_name));                                      \
+        luaL_argcheck(L, lua_isnumber(L, -1), 1,                               \
+                      "field '" field_name "' must be a number");              \
+        dv = lua_tonumber(L, -1);                                              \
+        lua_pop(L, 1);                                                         \
+        if (cond) {                                                            \
+            lua_pushnil(L);                                                    \
+            lua_pushfstring(L,                                                 \
+                            "invalid field '" field_name "': " __VA_ARGS__);   \
+            return 2;                                                          \
+        }                                                                      \
+    } while (0)
 
 #define GET_IVALUE_FIELD(field_name, cond, ...)                                \
     do {                                                                       \
@@ -190,6 +227,16 @@ static int restore_lua(lua_State *L)
     GET_IVALUE_FIELD("gc_step", 0);
     gc_step = (iv < 0) ? -1 : (int)iv;
 
+    // validate cl field
+    GET_DVALUE_FIELD("cl", dv <= 0 || dv > 100,
+                     "must be in range 0 < cl <= 100");
+    cl = (double)dv;
+
+    // validate rciw field
+    GET_DVALUE_FIELD("rciw", dv <= 0 || dv > 100,
+                     "must be in range 0 < rciw <= 100");
+    rciw = (double)dv;
+
     // validate base_kb field
     GET_IVALUE_FIELD("base_kb", iv <= 0, "must be > 0");
     base_kb = (size_t)iv;
@@ -197,7 +244,7 @@ static int restore_lua(lua_State *L)
 #undef GET_IVALUE_FIELD
 
     // Create samples object
-    new_measure_samples(L, capacity, gc_step, &s);
+    s          = new_measure_samples(L, capacity, gc_step, cl, rciw);
     s->count   = count;
     s->base_kb = base_kb;
 
@@ -257,19 +304,34 @@ static int restore_lua(lua_State *L)
     return 1;
 }
 
+#define DEFAULT_CAPACITY 1000
+#define DEFAULT_GC_STEP  0
+#define DEFAULT_CL       95.0
+#define DEFAULT_RCIW     5.0
+
 static int new_lua(lua_State *L)
 {
     if (!lua_istable(L, 1)) {
-        lua_Integer capacity = luaL_optinteger(L, 1, 1000);
-        lua_Integer gc_step  = luaL_optinteger(L, 2, 0);
+        lua_Integer capacity = luaL_optinteger(L, 1, DEFAULT_CAPACITY);
+        lua_Integer gc_step  = luaL_optinteger(L, 2, DEFAULT_GC_STEP);
+        lua_Number cl        = luaL_optnumber(L, 3, DEFAULT_CL);
+        lua_Number rciw      = luaL_optnumber(L, 4, DEFAULT_RCIW);
         if (capacity <= 0) {
             lua_pushnil(L);
             lua_pushliteral(L, "capacity must be > 0");
             return 2;
+        } else if (cl <= 0 || cl > 100) {
+            lua_pushnil(L);
+            lua_pushliteral(L, "cl must be in 0 < cl <= 100");
+            return 2;
+        } else if (rciw <= 0 || rciw > 100) {
+            lua_pushnil(L);
+            lua_pushliteral(L, "rciw must be in 0 < rciw <= 100");
+            return 2;
         }
 
         // create new measure_samples_t userdata object
-        new_measure_samples(L, (size_t)capacity, (int)gc_step, NULL);
+        (void)new_measure_samples(L, (size_t)capacity, (int)gc_step, cl, rciw);
         return 1;
     }
 
@@ -290,6 +352,8 @@ LUALIB_API int luaopen_measure_samples(lua_State *L)
         struct luaL_Reg method[] = {
             {"capacity", capacity_lua},
             {"gc_step",  gc_step_lua },
+            {"cl",       cl_lua      },
+            {"rciw",     rciw_lua    },
             {"dump",     dump_lua    },
             {NULL,       NULL        }
         };
