@@ -54,9 +54,7 @@ function testcase.options()
         context = function()
             return {}
         end,
-        warmup = function()
-            return 5
-        end,
+        warmup = 3, -- warmup no longer supports function type
         confidence_level = 95,
         rciw = 5,
     })
@@ -153,7 +151,7 @@ function testcase.options()
         warmup = 'not a number',
     })
     assert.is_false(ok)
-    assert.equal(err, 'options.warmup must be a number or a function')
+    assert.equal(err, 'options.warmup must be a number between 0 and 5')
 
     -- test invalid warmup value (negative)
     desc = assert(new_describe('test'))
@@ -161,7 +159,7 @@ function testcase.options()
         warmup = -1,
     })
     assert.is_false(ok)
-    assert.equal(err, 'options.warmup must be a non-negative integer')
+    assert.equal(err, 'options.warmup must be a number between 0 and 5')
 
     -- test valid warmup value (zero)
     desc = assert(new_describe('test'))
@@ -170,6 +168,30 @@ function testcase.options()
     })
     assert.is_true(ok)
     assert.is_nil(err)
+
+    -- test valid warmup value (maximum)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        warmup = 5,
+    })
+    assert.is_true(ok)
+    assert.is_nil(err)
+
+    -- test valid warmup value (decimal)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        warmup = 2.5,
+    })
+    assert.is_true(ok)
+    assert.is_nil(err)
+
+    -- test invalid warmup value (too high)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        warmup = 6,
+    })
+    assert.is_false(ok)
+    assert.equal(err, 'options.warmup must be a number between 0 and 5')
 
     -- test invalid rciw type
     desc = assert(new_describe('test'))
@@ -194,6 +216,67 @@ function testcase.options()
     })
     assert.is_false(ok)
     assert.equal(err, 'options.rciw must be a number between 0 and 100')
+
+    -- test valid gc_step values
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = 0, -- full GC
+    })
+    assert.is_true(ok)
+    assert.is_nil(err)
+
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = -1, -- disabled GC
+    })
+    assert.is_true(ok)
+    assert.is_nil(err)
+
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = 1024, -- step GC
+    })
+    assert.is_true(ok)
+    assert.is_nil(err)
+
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = -5, -- negative value (should be accepted)
+    })
+    assert.is_true(ok)
+    assert.is_nil(err)
+
+    -- test invalid gc_step type
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = 'not a number',
+    })
+    assert.is_false(ok)
+    assert.equal(err, 'options.gc_step must be an integer')
+
+    -- test invalid gc_step value (float)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = 1.5,
+    })
+    assert.is_false(ok)
+    assert.equal(err, 'options.gc_step must be an integer')
+
+    -- test invalid gc_step value (infinity)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = math.huge,
+    })
+    assert.is_false(ok)
+    assert.equal(err, 'options.gc_step must be an integer')
+
+    -- test invalid gc_step value (NaN)
+    desc = assert(new_describe('test'))
+    ok, err = desc:options({
+        gc_step = 0 / 0,
+    })
+    assert.is_false(ok)
+    assert.equal(err, 'options.gc_step must be an integer')
 end
 
 function testcase.setup()
@@ -410,7 +493,7 @@ function testcase.complete_workflow()
     -- test typical workflow with options, setup, run, teardown
     local desc = assert(new_describe('complete test'))
     assert(desc:options({
-        warmup = 10,
+        warmup = 3,
         confidence_level = 95,
         rciw = 5,
     }))
