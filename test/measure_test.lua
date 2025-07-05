@@ -125,9 +125,9 @@ end
 function testcase.method_chaining_options()
     -- Test method chaining with options
     local result = measure.describe('Test').options({
-        repeats = 5,
-        warmup = 10,
-        sample_size = 1000,
+        warmup = 3,
+        confidence_level = 95,
+        rciw = 5,
     })
 
     -- Result should be the same proxy object
@@ -184,9 +184,9 @@ end
 function testcase.method_chaining_full_sequence()
     -- Test full method chaining sequence
     local result = measure.describe('Full Test').options({
-        repeats = 3,
         warmup = 5,
-        sample_size = 100,
+        confidence_level = 95,
+        rciw = 5,
     }).setup(function()
         return 'test_data'
     end).run(function(data)
@@ -278,8 +278,9 @@ function testcase.complex_chaining_with_hooks()
                 local_data = 'local',
             }
         end,
-        repeats = 2,
         warmup = 1,
+        confidence_level = 95,
+        rciw = 5,
     }).setup_once(function(ctx)
         return ctx.local_data .. '_setup'
     end).run(function(data)
@@ -356,7 +357,8 @@ function testcase.actual_measure_proxy_multiple_method_access()
 
     -- Both methods can be called independently
     options_method({
-        repeats = 5,
+        confidence_level = 95,
+        rciw = 5,
     })
     run_method(function()
     end)
@@ -442,8 +444,9 @@ function testcase.actual_measure_complete_workflow()
 
     -- Create benchmark
     actual_measure.describe('Complete Test').options({
-        repeats = 2,
         warmup = 1,
+        confidence_level = 95,
+        rciw = 5,
     }).setup(function(i)
         return 'test_data_' .. i
     end).run(function(data)
