@@ -14,6 +14,8 @@ local function create_samples_data(time_values, extra_fields)
         count = count,
         gc_step = 0,
         base_kb = 1, -- Changed from 0 to 1
+        cl = 95, -- Default confidence level
+        rciw = 5.0, -- Default target relative confidence interval width
     }
 
     -- Override with extra fields if provided
@@ -78,8 +80,8 @@ function testcase.samples_new_invalid_args()
         new_samples(true)
     end)
 
-    -- Test multiple arguments (second arg should be ignored)
-    s = new_samples(100, 200, 300)
+    -- Test multiple arguments (only capacity used, others ignored)
+    s = new_samples(100)
     assert.equal(s:capacity(), 100)
 end
 
@@ -107,6 +109,10 @@ function testcase.samples_dump()
     assert.equal(data.gc_step, 0)
     assert.is_number(data.base_kb)
     assert.equal(data.base_kb, 0)
+    assert.is_number(data.cl)
+    assert.equal(data.cl, 95)
+    assert.is_number(data.rciw)
+    assert.equal(data.rciw, 5.0)
 end
 
 function testcase.samples_metamethods()
@@ -162,6 +168,24 @@ function testcase.samples_with_gc_step()
     assert.equal(s6:capacity(), 10)
 end
 
+function testcase.samples_with_cl_and_rciw()
+    -- Test samples with different cl and rciw configurations
+    local s1 = new_samples(10, 0, 95, 5.0) -- Default values
+    assert.equal(s1:capacity(), 10)
+    assert.equal(s1:cl(), 95)
+    assert.equal(s1:rciw(), 5.0)
+
+    local s2 = new_samples(10, 0, 90, 2.0) -- 90% confidence, 2% RCIW
+    assert.equal(s2:capacity(), 10)
+    assert.equal(s2:cl(), 90)
+    assert.equal(s2:rciw(), 2.0)
+
+    local s3 = new_samples(10, 0, 99, 10.0) -- 99% confidence, 10% RCIW
+    assert.equal(s3:capacity(), 10)
+    assert.equal(s3:cl(), 99)
+    assert.equal(s3:rciw(), 10.0)
+end
+
 -- Test restoration functionality extensively
 
 function testcase.samples_restore_valid_data()
@@ -176,6 +200,8 @@ function testcase.samples_restore_valid_data()
         capacity = 10,
         gc_step = 2048,
         base_kb = 512,
+        cl = 90,
+        rciw = 2.5,
         before_kb = {
             100,
             110,
@@ -209,6 +235,8 @@ function testcase.samples_restore_valid_data()
     assert.equal(dump.count, 5)
     assert.equal(dump.gc_step, 2048)
     assert.equal(dump.base_kb, 512)
+    assert.equal(dump.cl, 90)
+    assert.equal(dump.rciw, 2.5)
     assert.equal(#dump.time_ns, 5)
     assert.equal(dump.time_ns[1], 1000)
     assert.equal(dump.time_ns[2], 2000)
@@ -238,6 +266,8 @@ function testcase.samples_restore_error_missing_metadata()
             count = 2,
             gc_step = 0,
             base_kb = 1,
+            cl = 95,
+            rciw = 5.0,
             -- Missing capacity
         })
     end)
@@ -264,6 +294,8 @@ function testcase.samples_restore_error_missing_metadata()
             capacity = 2,
             gc_step = 0,
             base_kb = 1,
+            cl = 95,
+            rciw = 5.0,
             -- Missing count
         })
     end)
@@ -278,6 +310,8 @@ function testcase.samples_restore_error_missing_metadata()
         count = 0,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     })
     assert.is_nil(bad_data3)
     assert.match(err3, "invalid field 'capacity': must be > 0", false)
@@ -310,6 +344,8 @@ function testcase.samples_restore_error_invalid_count()
         count = 3,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     })
     assert.is_nil(bad_data)
     assert.match(err, "invalid field 'count': must be >= 0 and <= capacity",
@@ -336,6 +372,8 @@ function testcase.samples_restore_error_missing_fields()
             count = 2,
             gc_step = 0,
             base_kb = 1,
+            cl = 95,
+            rciw = 5.0,
             -- Missing time_ns
         })
     end)
@@ -359,6 +397,8 @@ function testcase.samples_restore_error_missing_fields()
             count = 2,
             gc_step = 0,
             base_kb = 1,
+            cl = 95,
+            rciw = 5.0,
             -- Missing before_kb
         })
     end)
@@ -382,6 +422,8 @@ function testcase.samples_restore_error_missing_fields()
             count = 2,
             gc_step = 0,
             base_kb = 1,
+            cl = 95,
+            rciw = 5.0,
             -- Missing after_kb
         })
     end)
@@ -405,6 +447,8 @@ function testcase.samples_restore_error_missing_fields()
             count = 2,
             gc_step = 0,
             base_kb = 1,
+            cl = 95,
+            rciw = 5.0,
             -- Missing allocated_kb
         })
     end)
@@ -480,6 +524,8 @@ function testcase.samples_restore_error_array_size_mismatch()
         count = 2,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     })
     assert.is_nil(bad_data1)
     assert.match(err1, "array size does not match", false)
@@ -505,6 +551,8 @@ function testcase.samples_restore_error_array_size_mismatch()
         count = 2,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     })
     assert.is_nil(bad_data2)
     assert.match(err2, "array size does not match", false)
@@ -530,6 +578,8 @@ function testcase.samples_restore_error_array_size_mismatch()
         count = 2,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     })
     assert.is_nil(bad_data3)
     assert.match(err3, "array size does not match", false)
@@ -555,6 +605,8 @@ function testcase.samples_restore_error_array_size_mismatch()
         count = 2,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     })
     assert.is_nil(bad_data4)
     assert.match(err4, "array size does not match", false)
@@ -583,6 +635,8 @@ function testcase.samples_restore_error_non_numeric_values()
         count = 2,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     })
     assert.is_nil(bad_data1)
     assert.match(err1, "must be a integer >= 0")
@@ -609,6 +663,8 @@ function testcase.samples_restore_error_non_numeric_values()
         count = 2,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     })
     assert.is_nil(bad_data2)
     assert.match(err2, "must be a integer >= 0")
@@ -635,6 +691,8 @@ function testcase.samples_restore_error_non_numeric_values()
         count = 2,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     })
     assert.is_nil(bad_data3)
     assert.match(err3, "must be a integer >= 0")
@@ -661,6 +719,8 @@ function testcase.samples_restore_error_non_numeric_values()
         count = 2,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     })
     assert.is_nil(bad_data4)
     assert.match(err4, "must be a integer >= 0")
@@ -684,6 +744,99 @@ function testcase.samples_gc_explicit()
     assert.equal(data.capacity, 10)
 end
 
+function testcase.samples_gc_step_method()
+    -- Test gc_step() method with default value (0)
+    local s1 = new_samples(10)
+    assert.equal(s1:gc_step(), 0)
+
+    -- Test gc_step() method with specified value (1024)
+    local s2 = new_samples(10, 1024)
+    assert.equal(s2:gc_step(), 1024)
+
+    -- Test gc_step() method with disabled GC (-1)
+    local s3 = new_samples(10, -1)
+    assert.equal(s3:gc_step(), -1)
+
+    -- Test gc_step() method with negative values (should be converted to -1)
+    local s4 = new_samples(10, -5)
+    assert.equal(s4:gc_step(), -1)
+
+    local s5 = new_samples(10, -100)
+    assert.equal(s5:gc_step(), -1)
+
+    -- Test gc_step() method with zero (full GC)
+    local s6 = new_samples(10, 0)
+    assert.equal(s6:gc_step(), 0)
+
+    -- Test gc_step() method with large positive value
+    local s7 = new_samples(10, 999999)
+    assert.equal(s7:gc_step(), 999999)
+end
+
+function testcase.samples_gc_step_dump_consistency()
+    -- Test that gc_step() method returns same value as dump.gc_step
+    local s1 = new_samples(10, 512)
+    local dump1 = s1:dump()
+    assert.equal(s1:gc_step(), dump1.gc_step)
+    assert.equal(s1:gc_step(), 512)
+
+    local s2 = new_samples(10, -1)
+    local dump2 = s2:dump()
+    assert.equal(s2:gc_step(), dump2.gc_step)
+    assert.equal(s2:gc_step(), -1)
+
+    local s3 = new_samples(10, 0)
+    local dump3 = s3:dump()
+    assert.equal(s3:gc_step(), dump3.gc_step)
+    assert.equal(s3:gc_step(), 0)
+end
+
+function testcase.samples_gc_step_restore_preservation()
+    -- Test that gc_step is preserved through dump/restore cycle
+    local original_data = create_samples_data({
+        1000,
+        2000,
+    }, {
+        capacity = 5,
+        gc_step = 2048, -- Custom gc_step value
+        before_kb = {
+            100,
+            110,
+        },
+        after_kb = {
+            105,
+            115,
+        },
+        allocated_kb = {
+            5,
+            5,
+        },
+    })
+
+    local s1 = new_samples(original_data)
+    assert.equal(s1:gc_step(), 2048)
+
+    -- Dump and restore
+    local dump = s1:dump()
+    local s2 = new_samples(dump)
+    assert.equal(s2:gc_step(), 2048)
+
+    -- Test with negative gc_step
+    local data_negative = create_samples_data({
+        1000,
+    }, {
+        capacity = 2,
+        gc_step = -1, -- Disabled GC
+    })
+
+    local s3 = new_samples(data_negative)
+    assert.equal(s3:gc_step(), -1)
+
+    local dump3 = s3:dump()
+    local s4 = new_samples(dump3)
+    assert.equal(s4:gc_step(), -1)
+end
+
 function testcase.samples_edge_cases()
     -- Test with minimum capacity (1)
     local s1 = new_samples(1)
@@ -695,13 +848,101 @@ function testcase.samples_edge_cases()
     assert.equal(s2:capacity(), 1000000)
     assert.equal(#s2, 0)
 
-    -- Test gc_step normalization (negative values become 0)
+    -- Test gc_step normalization (negative values become -1)
     local s3 = new_samples(10, -100)
     assert.equal(s3:capacity(), 10)
+    assert.equal(s3:gc_step(), -1) -- Verify gc_step was normalized
 
     -- Test very large gc_step
     local s4 = new_samples(10, 999999)
     assert.equal(s4:capacity(), 10)
+    assert.equal(s4:gc_step(), 999999) -- Verify gc_step is preserved
+end
+
+function testcase.samples_cl_rciw_methods()
+    -- Test cl() and rciw() methods with default values
+    local s1 = new_samples(10)
+    assert.equal(s1:cl(), 95)
+    assert.equal(s1:rciw(), 5.0)
+
+    -- Test cl() and rciw() methods with custom values
+    local s2 = new_samples(10, 0, 90, 2.0)
+    assert.equal(s2:cl(), 90)
+    assert.equal(s2:rciw(), 2.0)
+
+    -- Test cl() and rciw() methods with edge values
+    local s3 = new_samples(10, 0, 99, 10.0)
+    assert.equal(s3:cl(), 99)
+    assert.equal(s3:rciw(), 10.0)
+end
+
+function testcase.samples_cl_rciw_dump_consistency()
+    -- Test that cl() and rciw() methods return same values as dump
+    local s1 = new_samples(10, 0, 85, 3.5)
+    local dump1 = s1:dump()
+    assert.equal(s1:cl(), dump1.cl)
+    assert.equal(s1:rciw(), dump1.rciw)
+    assert.equal(s1:cl(), 85)
+    assert.equal(s1:rciw(), 3.5)
+
+    local s2 = new_samples(10, 0, 99, 1.0)
+    local dump2 = s2:dump()
+    assert.equal(s2:cl(), dump2.cl)
+    assert.equal(s2:rciw(), dump2.rciw)
+    assert.equal(s2:cl(), 99)
+    assert.equal(s2:rciw(), 1.0)
+end
+
+function testcase.samples_cl_rciw_restore_preservation()
+    -- Test that cl and rciw are preserved through dump/restore cycle
+    local original_data = create_samples_data({
+        1000,
+        2000,
+    }, {
+        capacity = 5,
+        cl = 80,
+        rciw = 7.5,
+        before_kb = {
+            100,
+            110,
+        },
+        after_kb = {
+            105,
+            115,
+        },
+        allocated_kb = {
+            5,
+            5,
+        },
+    })
+
+    local s1 = new_samples(original_data)
+    assert.equal(s1:cl(), 80)
+    assert.equal(s1:rciw(), 7.5)
+
+    -- Dump and restore
+    local dump = s1:dump()
+    local s2 = new_samples(dump)
+    assert.equal(s2:cl(), 80)
+    assert.equal(s2:rciw(), 7.5)
+
+    -- Test with edge values
+    local data_edge = create_samples_data({
+        1000,
+    }, {
+        capacity = 2,
+        cl = 99,
+        rciw = 0.5,
+    })
+
+    local s3 = new_samples(data_edge)
+    assert.equal(s3:cl(), 99)
+    assert.equal(s3:rciw(), 0.5)
+
+    local dump3 = s3:dump()
+    local s4 = new_samples(dump3)
+    assert.equal(s4:cl(), 99)
+    assert.equal(s4:rciw(), 0.5)
 end
 
 function testcase.samples_metadata_preservation()
@@ -716,6 +957,8 @@ function testcase.samples_metadata_preservation()
         capacity = 10, -- Different from count to test this scenario
         gc_step = 2048,
         base_kb = 512,
+        cl = 99,
+        rciw = 1.5,
         before_kb = {
             100,
             110,
@@ -752,6 +995,8 @@ function testcase.samples_metadata_preservation()
     assert.equal(dump.count, 5)
     assert.equal(dump.gc_step, 2048)
     assert.equal(dump.base_kb, 512)
+    assert.equal(dump.cl, 99)
+    assert.equal(dump.rciw, 1.5)
     assert.equal(#dump.time_ns, 5)
     assert.equal(#dump.before_kb, 5)
     assert.equal(#dump.after_kb, 5)
@@ -768,6 +1013,8 @@ function testcase.samples_metadata_preservation()
     assert.equal(dump2.count, 5)
     assert.equal(dump2.gc_step, 2048)
     assert.equal(dump2.base_kb, 512)
+    assert.equal(dump2.cl, 99)
+    assert.equal(dump2.rciw, 1.5)
 end
 
 function testcase.samples_memory_management()
@@ -803,6 +1050,8 @@ function testcase.samples_restore_capacity_vs_count()
         2000,
     }, {
         capacity = 5, -- Capacity larger than count
+        cl = 88,
+        rciw = 6.0,
         before_kb = {
             100,
             110,
