@@ -74,6 +74,13 @@ static int count_lua(lua_State *L)
     return 1;
 }
 
+static int gc_step_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    lua_pushinteger(L, s->gc_step);
+    return 1;
+}
+
 static int capacity_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
@@ -282,6 +289,7 @@ LUALIB_API int luaopen_measure_samples(lua_State *L)
         };
         struct luaL_Reg method[] = {
             {"capacity", capacity_lua},
+            {"gc_step",  gc_step_lua },
             {"dump",     dump_lua    },
             {NULL,       NULL        }
         };
