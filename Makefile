@@ -1,6 +1,10 @@
 # Package name
 PACKAGE_NAME = measure
 
+# Command files
+CMDS = $(shell find bin -name '*.lua')
+COMMANDS = $(patsubst bin/%.lua, $(INST_BINDIR)/%, $(CMDS))
+
 # Source files - simple and recursive
 CSRCS = $(shell find src -name '*.c')
 COBJS = $(CSRCS:.c=.$(LIB_EXTENSION))
@@ -36,7 +40,7 @@ clean:
 	$(CC) -o $@ $^ $(LDFLAGS) $(PLATFORM_LDFLAGS) $(COVFLAGS)
 
 # Common installation rule
-define INSTALL_LIBS
+define INSTALL_FILES
 	@mkdir -p $(@D)
 	@echo "Installing $< -> $@"
 	@install $< $@
@@ -44,19 +48,24 @@ endef
 
 # Lua files installation
 $(INST_LUALIBDIR)/%: lib/%
-	$(INSTALL_LIBS)
+	$(INSTALL_FILES)
 
 ifneq ($(MAINLIB),)
 $(MAINLIB): lib/$(PACKAGE_NAME).lua
-	$(INSTALL_LIBS)
+	$(INSTALL_FILES)
 endif
 
 # C libraries installation - pattern rule magic!
 $(INST_CLIBDIR)/%: src/%
-	$(INSTALL_LIBS)
+	$(INSTALL_FILES)
+
+# Command files installation
+$(INST_BINDIR)/%: bin/%.lua
+	$(INSTALL_FILES)
+	@chmod +x $@
 
 # Install all
-install: $(LUALIBS) $(MAINLIB) $(CLIBS)
+install: $(COMMANDS) $(LUALIBS) $(MAINLIB) $(CLIBS)
 	@echo "Installation complete"
 	# Clean up .so, .o and .gcda files in the source directory
 	find src -name "*.so" -delete
@@ -66,6 +75,8 @@ install: $(LUALIBS) $(MAINLIB) $(CLIBS)
 # Debug variables
 show-vars:
 	@echo "=== Build Variables ==="
+	@echo "PACKAGE_NAME: $(PACKAGE_NAME)"
+	@echo "COMMANDS: $(CMDS)"
 	@echo "CSRCS: $(CSRCS)"
 	@echo "COBJS: $(COBJS)"
 	@echo "CLIBS: $(CLIBS)"
