@@ -18,6 +18,8 @@ local function create_mock_samples(time_values)
         count = count,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     }
 
     for i, time_ns in ipairs(time_values) do
@@ -103,6 +105,8 @@ function testcase.nan_conditions()
         count = 0,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     }
 
     local ok, err = pcall(function()
@@ -132,6 +136,8 @@ function testcase.nan_conditions()
         count = 1,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     }
 
     local s, serr = samples(minimal_data)

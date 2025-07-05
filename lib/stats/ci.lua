@@ -19,7 +19,6 @@
 -- FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 -- DEALINGS IN THE SOFTWARE.
 --
-local type = type
 local abs = math.abs
 local exp = math.exp
 local sqrt = math.sqrt
@@ -33,7 +32,6 @@ local cv = require('measure.stats.cv')
 -- Constants for statistical calculations
 local STATS_EPSILON = 1e-15
 local MIN_SAMPLE_SIZE = 100 -- Minimum sample size
-local DEFAULT_CONFIDENCE_LEVEL = 95
 
 -- Confidence levels
 local CONFIDENCE_LEVEL_90 = 0.90
@@ -44,9 +42,6 @@ local CONFIDENCE_LEVEL_99 = 0.99
 local QUALITY_EXCELLENT = 2.0 -- Bootstrap-equivalent precision
 local QUALITY_GOOD = 5.0 -- Practical precision (recommended default)
 local QUALITY_ACCEPTABLE = 10.0 -- Minimum acceptable level
-
--- Default resampling parameters
-local DEFAULT_TARGET_RCIW = 5.0 -- Default quality target (%)
 
 -- T-distribution critical values for common confidence levels
 -- Indexed by degrees of freedom (df = n - 1)
@@ -417,20 +412,20 @@ end
 --- Uses appropriate t-values based on degrees of freedom for small samples,
 --- normal distribution approximation for large samples (n >= 30)
 --- @param samples measure.samples An instance of measure.samples
---- @param level number? Confidence level (e.g., 95 for 95% confidence). Defaults to 95
---- @param target_rciw number? Target Relative Confidence Interval Width (%). Defaults to 5.0%
+--- @param options table? Optional configuration table
 --- @return table confidence_interval_t structure with comprehensive quality assessment
-local function confidence_interval(samples, level, target_rciw)
-    -- validate confidence level (0 < level < 100)
-    level = level or DEFAULT_CONFIDENCE_LEVEL
-    assert(type(level) == "number" and level > 0.0 and level < 100.0,
-           "Confidence level must be a number between 0 and 100")
-    -- validate target RCIW (0 < target_rciw < 100)
-    target_rciw = target_rciw or DEFAULT_TARGET_RCIW
-    assert(
-        type(target_rciw) == "number" and target_rciw > 0.0 and target_rciw <
-            100.0, "Target RCIW must be a number between 0 and 100")
+local function confidence_interval(samples, options)
+    options = options or {}
 
+    -- Throw error for nil samples instead of returning NaN
+    if not samples then
+        error("samples argument is required")
+    end
+
+    -- Use confidence_level from options if provided, otherwise from samples
+    local level = options.confidence_level or samples:cl()
+    -- Use target_rciw from options if provided, otherwise from samples
+    local target_rciw = options.target_rciw or samples:rciw()
     local result = {
         lower = NaN, -- Lower bound of confidence interval
         upper = NaN, -- Upper bound of confidence interval
@@ -444,7 +439,7 @@ local function confidence_interval(samples, level, target_rciw)
     local confidence_level = level / 100.0
 
     -- Basic validation
-    if not samples or #samples < MIN_SAMPLE_SIZE then
+    if #samples < MIN_SAMPLE_SIZE then
         -- Not enough samples for confidence interval calculation
         result.resample_size = MIN_SAMPLE_SIZE
         return result

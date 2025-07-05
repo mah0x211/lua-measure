@@ -5,7 +5,9 @@ local ci = require('measure.stats.ci')
 local samples = require('measure.samples')
 
 -- Helper function to create mock samples with known time values
-local function create_mock_samples(time_values)
+local function create_mock_samples(time_values, confidence_level, rciw)
+    confidence_level = confidence_level or 95
+    rciw = rciw or 5.0
     local count = #time_values
     local data = {
         time_ns = {},
@@ -16,6 +18,8 @@ local function create_mock_samples(time_values)
         count = count,
         gc_step = 0,
         base_kb = 1,
+        cl = confidence_level,
+        rciw = rciw,
     }
 
     for i, time_ns in ipairs(time_values) do
@@ -89,14 +93,15 @@ function testcase.custom_levels()
     for i = 1, 100 do
         time_values[i] = 1000 + (i - 1) * 50
     end
-    local s = create_mock_samples(time_values)
 
     -- 90% CI
-    local ci90 = ci(s, 90)
+    local s90 = create_mock_samples(time_values, 90)
+    local ci90 = ci(s90)
     assert.equal(ci90.level, 90)
 
     -- 99% CI
-    local ci99 = ci(s, 99)
+    local s99 = create_mock_samples(time_values, 99)
+    local ci99 = ci(s99)
     assert.equal(ci99.level, 99)
 
     -- 99% CI should be wider than 90% CI
@@ -106,23 +111,19 @@ function testcase.custom_levels()
 end
 
 function testcase.error_handling()
-    -- test error handling with nil samples (Lua implementation returns NaN)
-    local result = ci(nil)
-
-    assert.is_table(result)
-    -- check for NaN in lower and upper bounds
-    assert.is_nan(result.lower)
-    assert.is_nan(result.upper)
+    -- test error handling with nil samples (should throw error)
+    assert.throws(function()
+        ci(nil)
+    end)
 
     -- test error handling with invalid confidence level
     local time_values = {}
     for i = 1, 100 do
         time_values[i] = 1000 + i * 100
     end
-    local s = create_mock_samples(time_values)
     -- Should throw assertion error for invalid level > 100
     assert.throws(function()
-        ci(s, 150) -- invalid level > 100
+        create_mock_samples(time_values, 150) -- invalid level > 100
     end)
 end
 
@@ -132,29 +133,32 @@ function testcase.large_samples()
     for i = 1, 100 do
         time_values[i] = 1000 + i * 10
     end
-    local s = create_mock_samples(time_values)
 
     -- 99% CI should use normal approximation (2.576)
-    local ci99 = ci(s, 99)
+    local s99 = create_mock_samples(time_values, 99)
+    local ci99 = ci(s99)
     assert.is_table(ci99)
     assert.is_number(ci99.lower)
     assert.is_number(ci99.upper)
     assert.equal(ci99.level, 99)
 
     -- 95% CI should use normal approximation (1.96)
-    local ci95 = ci(s, 95)
+    local s95 = create_mock_samples(time_values, 95)
+    local ci95 = ci(s95)
     assert.is_table(ci95)
     assert.is_number(ci95.lower)
     assert.is_number(ci95.upper)
 
     -- 90% CI should use normal approximation (1.645)
-    local ci90 = ci(s, 90)
+    local s90 = create_mock_samples(time_values, 90)
+    local ci90 = ci(s90)
     assert.is_table(ci90)
     assert.is_number(ci90.lower)
     assert.is_number(ci90.upper)
 
     -- test other confidence level that defaults to 1.0
-    local ci50 = ci(s, 50)
+    local s50 = create_mock_samples(time_values, 50)
+    local ci50 = ci(s50)
     assert.is_table(ci50)
     assert.is_number(ci50.lower)
     assert.is_number(ci50.upper)
@@ -166,9 +170,9 @@ function testcase.interpolation()
     for i = 1, 100 do
         time_values[i] = 1000 + (i - 1) * 50
     end
-    local s = create_mock_samples(time_values)
+    local s92 = create_mock_samples(time_values, 92)
 
-    local ci92 = ci(s, 92) -- between 90% and 95%
+    local ci92 = ci(s92) -- between 90% and 95%
     assert.is_table(ci92)
     assert.is_number(ci92.lower)
     assert.is_number(ci92.upper)
@@ -210,20 +214,20 @@ function testcase.edge_cases()
     for i = 1, 100 do
         time_values[i] = 1000 + (i - 1) * 100
     end
-    local s = create_mock_samples(time_values)
 
-    -- test confidence level = 0 (invalid) - should throw error
+    -- test confidence level = -1 (invalid) - should throw error
     assert.throws(function()
-        ci(s, 0)
+        create_mock_samples(time_values, -1)
     end)
 
-    -- test confidence level = 100 (invalid) - should throw error
+    -- test confidence level = 101 (invalid) - should throw error
     assert.throws(function()
-        ci(s, 100)
+        create_mock_samples(time_values, 101)
     end)
 
     -- test very low confidence level (valid)
-    local result3 = ci(s, 10)
+    local s10 = create_mock_samples(time_values, 10)
+    local result3 = ci(s10)
     assert.is_table(result3)
     assert.is_number(result3.lower)
     assert.is_number(result3.upper)
@@ -235,10 +239,10 @@ function testcase.interpolation_detailed()
     for i = 1, 100 do
         time_values[i] = 1000 + (i - 1) * 50
     end
-    local s = create_mock_samples(time_values)
 
     -- test that 92% CI is computed (should trigger lines 112-115 if between 90% and 95%)
-    local ci92 = ci(s, 92)
+    local s92 = create_mock_samples(time_values, 92)
+    local ci92 = ci(s92)
     assert.is_table(ci92)
     assert.is_number(ci92.lower)
     assert.is_number(ci92.upper)
@@ -247,15 +251,18 @@ function testcase.interpolation_detailed()
     -- For this test, we just verify the interpolation code path exists
     -- The actual interpolation might not be triggered due to the confidence level logic
     -- Let's test a different confidence level that will trigger interpolation
-    local ci91 = ci(s, 91) -- between 90% and 95%
+    local s91 = create_mock_samples(time_values, 91)
+    local ci91 = ci(s91) -- between 90% and 95%
     assert.is_table(ci91)
     assert.is_number(ci91.lower)
     assert.is_number(ci91.upper)
     assert.equal(ci91.level, 91)
 
     -- Verify that different confidence levels produce different results
-    local ci90 = ci(s, 90)
-    local ci95 = ci(s, 95)
+    local s90 = create_mock_samples(time_values, 90)
+    local ci90 = ci(s90)
+    local s95 = create_mock_samples(time_values, 95)
+    local ci95 = ci(s95)
 
     -- 95% CI should be wider than 90% CI
     local width90 = ci90.upper - ci90.lower
@@ -271,10 +278,10 @@ function testcase.extreme_df_cases()
     for i = 1, 150 do -- df = 149 > 30
         large_time_values[i] = 1000 + i
     end
-    local large_s = create_mock_samples(large_time_values)
+    local large_s = create_mock_samples(large_time_values, 95)
 
     -- test that it uses normal approximation for df > 30
-    local ci_large = ci(large_s, 95)
+    local ci_large = ci(large_s)
     assert.is_table(ci_large)
     assert.is_number(ci_large.lower)
     assert.is_number(ci_large.upper)
@@ -286,10 +293,10 @@ function testcase.interpolation_trigger()
     for i = 1, 100 do
         time_values[i] = 1000 + (i - 1) * 50
     end
-    local s = create_mock_samples(time_values)
 
     -- Test confidence level exactly between 90% and 95% to trigger interpolation
-    local ci92 = ci(s, 92) -- should trigger interpolation
+    local s92 = create_mock_samples(time_values, 92)
+    local ci92 = ci(s92) -- should trigger interpolation
     assert.is_table(ci92)
     assert.is_number(ci92.lower)
     assert.is_number(ci92.upper)
@@ -302,8 +309,8 @@ function testcase.extreme_edge_cases()
     for i = 1, 100 do -- Now using MIN_SAMPLE_SIZE = 100
         time_values[i] = 1000 + i * 100
     end
-    local s = create_mock_samples(time_values)
-    local result = ci(s, 95)
+    local s = create_mock_samples(time_values, 95)
+    local result = ci(s)
     assert.is_table(result)
     assert.is_number(result.lower)
     assert.is_number(result.upper)
@@ -311,7 +318,7 @@ function testcase.extreme_edge_cases()
     -- Test with invalid small sample count to trigger early return
     local s_small = create_mock_samples({
         1000,
-    }) -- count = 1 < MIN_SAMPLE_SIZE
+    }, 95) -- count = 1 < MIN_SAMPLE_SIZE
     local result_small = ci(s_small)
     assert.is_table(result_small)
     assert.is_nan(result_small.lower)
@@ -327,29 +334,32 @@ function testcase.force_interpolation()
     for i = 1, 100 do
         time_values[i] = 1000 + (i - 1) * 50
     end
-    local s = create_mock_samples(time_values)
 
     -- Test confidence levels that should fall into the interpolation range
     -- The condition is: confidence_level > 90 AND confidence_level < 95
-    local ci921 = ci(s, 92.1) -- between 90% and 95%
+    local s921 = create_mock_samples(time_values, 92.1)
+    local ci921 = ci(s921) -- between 90% and 95%
     assert.is_table(ci921)
     assert.is_number(ci921.lower)
     assert.is_number(ci921.upper)
     assert.equal(ci921.level, 92.1)
 
-    local ci935 = ci(s, 93.5) -- another interpolation test
+    local s935 = create_mock_samples(time_values, 93.5)
+    local ci935 = ci(s935) -- another interpolation test
     assert.is_table(ci935)
     assert.is_number(ci935.lower)
     assert.is_number(ci935.upper)
     assert.equal(ci935.level, 93.5)
 
     -- Test edge case: exactly at boundaries (should NOT trigger interpolation)
-    local ci90 = ci(s, 90) -- exactly 90%
+    local s90 = create_mock_samples(time_values, 90)
+    local ci90 = ci(s90) -- exactly 90%
     assert.is_table(ci90)
     assert.is_number(ci90.lower)
     assert.is_number(ci90.upper)
 
-    local ci95 = ci(s, 95) -- exactly 95%
+    local s95 = create_mock_samples(time_values, 95)
+    local ci95 = ci(s95) -- exactly 95%
     assert.is_table(ci95)
     assert.is_number(ci95.lower)
     assert.is_number(ci95.upper)
@@ -361,20 +371,22 @@ function testcase.large_df_cap()
     for i = 1, 150 do -- df = 149 > 30, should be capped to 30
         large_time_values[i] = 1000 + i
     end
-    local s = create_mock_samples(large_time_values)
 
     -- Test various confidence levels to ensure df capping works
-    local ci90 = ci(s, 90)
+    local s90 = create_mock_samples(large_time_values, 90)
+    local ci90 = ci(s90)
     assert.is_table(ci90)
     assert.is_number(ci90.lower)
     assert.is_number(ci90.upper)
 
-    local ci95 = ci(s, 95)
+    local s95 = create_mock_samples(large_time_values, 95)
+    local ci95 = ci(s95)
     assert.is_table(ci95)
     assert.is_number(ci95.lower)
     assert.is_number(ci95.upper)
 
-    local ci99 = ci(s, 99)
+    local s99 = create_mock_samples(large_time_values, 99)
+    local ci99 = ci(s99)
     assert.is_table(ci99)
     assert.is_number(ci99.lower)
     assert.is_number(ci99.upper)
@@ -386,9 +398,9 @@ function testcase.rciw_calculation()
     for i = 1, 100 do
         time_values[i] = 1000 + (i - 1) * 20
     end
-    local s = create_mock_samples(time_values)
+    local s = create_mock_samples(time_values, 95)
 
-    local result = ci(s, 95)
+    local result = ci(s)
     assert.is_table(result)
     assert.is_number(result.rciw)
     assert.greater(result.rciw, 0)
@@ -413,11 +425,13 @@ function testcase.rciw_wider_intervals()
     for i = 1, 100 do
         time_values[i] = 1000 + (i - 1) * 50
     end
-    local s = create_mock_samples(time_values)
 
-    local ci90 = ci(s, 90)
-    local ci95 = ci(s, 95)
-    local ci99 = ci(s, 99)
+    local s90 = create_mock_samples(time_values, 90)
+    local ci90 = ci(s90)
+    local s95 = create_mock_samples(time_values, 95)
+    local ci95 = ci(s95)
+    local s99 = create_mock_samples(time_values, 99)
+    local ci99 = ci(s99)
 
     -- Higher confidence levels should have wider intervals and higher RCIW
     assert.greater(ci95.rciw, ci90.rciw)
@@ -425,25 +439,24 @@ function testcase.rciw_wider_intervals()
 end
 
 function testcase.rciw_error_cases()
-    -- Test RCIW with error cases
-    local result = ci(nil)
-    assert.is_table(result)
-    assert.is_nan(result.rciw)
+    -- Test RCIW with error cases - nil samples should throw error
+    assert.throws(function()
+        ci(nil)
+    end)
 
     -- Test with invalid confidence level - should throw error
     local time_values = {}
     for i = 1, 100 do
         time_values[i] = 1000 + (i - 1) * 100
     end
-    local s = create_mock_samples(time_values)
     assert.throws(function()
-        ci(s, 150)
+        create_mock_samples(time_values, 150)
     end)
 
     -- Test with insufficient samples
     local s_single = create_mock_samples({
         1000,
-    })
+    }, 95)
     local result3 = ci(s_single)
     assert.is_table(result3)
     assert.is_nan(result3.rciw)
@@ -457,9 +470,9 @@ function testcase.rciw_zero_mean_edge_case()
     for i = 1, 100 do
         time_values[i] = i - 1 -- 0 to 99 (integers)
     end
-    local s = create_mock_samples(time_values)
+    local s = create_mock_samples(time_values, 95)
 
-    local result = ci(s, 95)
+    local result = ci(s)
     assert.is_table(result)
     assert.is_number(result.rciw)
     -- When mean is very small, RCIW should still be calculated
@@ -472,9 +485,9 @@ function testcase.rciw_very_small_mean()
     for i = 1, 100 do
         time_values[i] = i -- 1 to 100 (small integers)
     end
-    local s = create_mock_samples(time_values)
+    local s = create_mock_samples(time_values, 95)
 
-    local result = ci(s, 95)
+    local result = ci(s)
     assert.is_table(result)
     assert.is_number(result.rciw)
     -- For very small means, RCIW should be properly calculated
@@ -553,14 +566,15 @@ function testcase.custom_target_rciw()
     for i = 1, 100 do
         time_values[i] = 1000 + (i - 1) * 50
     end
-    local s = create_mock_samples(time_values)
 
     -- Test with strict target (2%)
-    local result_strict = ci(s, 0.95, 2.0)
+    local s_strict = create_mock_samples(time_values, 95, 2.0)
+    local result_strict = ci(s_strict)
     assert.is_table(result_strict)
 
     -- Test with loose target (15%)
-    local result_loose = ci(s, 0.95, 15.0)
+    local s_loose = create_mock_samples(time_values, 95, 15.0)
+    local result_loose = ci(s_loose)
     assert.is_table(result_loose)
 
     -- Strict target should be more likely to recommend resampling
@@ -600,9 +614,9 @@ function testcase.resample_target_calculation()
     for i = 1, 100 do
         time_values[i] = 1000 + (i - 1) * 50
     end
-    local s = create_mock_samples(time_values)
+    local s = create_mock_samples(time_values, 95, 2.0)
 
-    local result = ci(s, 0.95, 2.0)
+    local result = ci(s)
     assert.is_table(result)
 
     if result.resample_size then

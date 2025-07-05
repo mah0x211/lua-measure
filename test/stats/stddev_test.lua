@@ -15,6 +15,8 @@ local function create_mock_samples(time_values)
         count = count,
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     }
 
     for i, time_ns in ipairs(time_values) do
@@ -117,10 +119,12 @@ function testcase.error_handling()
         before_kb = {},
         after_kb = {},
         allocated_kb = {},
-        capacity = 10,  -- capacity must be > 0
-        count = 0,      -- but count can be 0
+        capacity = 10, -- capacity must be > 0
+        count = 0, -- but count can be 0
         gc_step = 0,
         base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
     }
     local empty_samples = samples(empty_data)
     local result = stddev(empty_samples)
