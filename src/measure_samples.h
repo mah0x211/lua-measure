@@ -42,13 +42,15 @@ typedef struct {
 } measure_samples_data_t;
 
 typedef struct {
-    size_t capacity;              // capacity of the samples array
-    size_t count;                 // number of samples collected
-    size_t base_kb;               // Memory usage at start (after initial GC)
-    int saved_gc_pause;           // Saved GC pause value
-    int saved_gc_stepmul;         // Saved GC step multiplier value
-    int gc_step;                  // GC step size in KB (0 for full GC)
-    int ref_data;                 // reference to Lua data array
+    size_t capacity;      // capacity of the samples array
+    size_t count;         // number of samples collected
+    size_t base_kb;       // Memory usage at start (after initial GC)
+    int saved_gc_pause;   // Saved GC pause value
+    int saved_gc_stepmul; // Saved GC step multiplier value
+    double cl;            // confidence  level (e.g., 95.0%)
+    double rciw;          // relative confidence interval width (e.g., 5.0%)
+    int gc_step;          // GC step size in KB (0 for full GC)
+    int ref_data;         // reference to Lua data array
     measure_samples_data_t *data; // array of samples in nanoseconds
 } measure_samples_t;
 
