@@ -32,7 +32,7 @@ local getinfo = require('measure.getinfo')
 
 --- @class measure.describe.spec.options
 --- @field context table|function|nil Context for the benchmark
---- @field warmup number|function|nil Warmup iterations before measuring
+--- @field warmup number|nil Warmup iterations before measuring
 --- @field confidence_level number|nil confidence level in percentage (0-100, default: 95)
 --- @field rciw number|nil relative confidence interval width in percentage (0-100, default: 5)
 
@@ -73,13 +73,9 @@ local function validate_options(opts)
 
     -- Validate warmup
     if opts.warmup ~= nil then
-        local t = type(opts.warmup)
-        if t ~= 'number' and t ~= 'function' then
-            return false, 'options.warmup must be a number or a function'
-        end
-        if t == 'number' and
-            (opts.warmup < 0 or opts.warmup ~= floor(opts.warmup)) then
-            return false, 'options.warmup must be a non-negative integer'
+        local v = opts.warmup
+        if type(v) ~= 'number' or v < 0 or v > 5 then
+            return false, 'options.warmup must be a number between 0 and 5'
         end
     end
 
