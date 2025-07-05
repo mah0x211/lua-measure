@@ -684,6 +684,99 @@ function testcase.samples_gc_explicit()
     assert.equal(data.capacity, 10)
 end
 
+function testcase.samples_gc_step_method()
+    -- Test gc_step() method with default value (0)
+    local s1 = new_samples(10)
+    assert.equal(s1:gc_step(), 0)
+
+    -- Test gc_step() method with specified value (1024)
+    local s2 = new_samples(10, 1024)
+    assert.equal(s2:gc_step(), 1024)
+
+    -- Test gc_step() method with disabled GC (-1)
+    local s3 = new_samples(10, -1)
+    assert.equal(s3:gc_step(), -1)
+
+    -- Test gc_step() method with negative values (should be converted to -1)
+    local s4 = new_samples(10, -5)
+    assert.equal(s4:gc_step(), -1)
+
+    local s5 = new_samples(10, -100)
+    assert.equal(s5:gc_step(), -1)
+
+    -- Test gc_step() method with zero (full GC)
+    local s6 = new_samples(10, 0)
+    assert.equal(s6:gc_step(), 0)
+
+    -- Test gc_step() method with large positive value
+    local s7 = new_samples(10, 999999)
+    assert.equal(s7:gc_step(), 999999)
+end
+
+function testcase.samples_gc_step_dump_consistency()
+    -- Test that gc_step() method returns same value as dump.gc_step
+    local s1 = new_samples(10, 512)
+    local dump1 = s1:dump()
+    assert.equal(s1:gc_step(), dump1.gc_step)
+    assert.equal(s1:gc_step(), 512)
+
+    local s2 = new_samples(10, -1)
+    local dump2 = s2:dump()
+    assert.equal(s2:gc_step(), dump2.gc_step)
+    assert.equal(s2:gc_step(), -1)
+
+    local s3 = new_samples(10, 0)
+    local dump3 = s3:dump()
+    assert.equal(s3:gc_step(), dump3.gc_step)
+    assert.equal(s3:gc_step(), 0)
+end
+
+function testcase.samples_gc_step_restore_preservation()
+    -- Test that gc_step is preserved through dump/restore cycle
+    local original_data = create_samples_data({
+        1000,
+        2000,
+    }, {
+        capacity = 5,
+        gc_step = 2048, -- Custom gc_step value
+        before_kb = {
+            100,
+            110,
+        },
+        after_kb = {
+            105,
+            115,
+        },
+        allocated_kb = {
+            5,
+            5,
+        },
+    })
+
+    local s1 = new_samples(original_data)
+    assert.equal(s1:gc_step(), 2048)
+
+    -- Dump and restore
+    local dump = s1:dump()
+    local s2 = new_samples(dump)
+    assert.equal(s2:gc_step(), 2048)
+
+    -- Test with negative gc_step
+    local data_negative = create_samples_data({
+        1000,
+    }, {
+        capacity = 2,
+        gc_step = -1, -- Disabled GC
+    })
+
+    local s3 = new_samples(data_negative)
+    assert.equal(s3:gc_step(), -1)
+
+    local dump3 = s3:dump()
+    local s4 = new_samples(dump3)
+    assert.equal(s4:gc_step(), -1)
+end
+
 function testcase.samples_edge_cases()
     -- Test with minimum capacity (1)
     local s1 = new_samples(1)
@@ -695,13 +788,15 @@ function testcase.samples_edge_cases()
     assert.equal(s2:capacity(), 1000000)
     assert.equal(#s2, 0)
 
-    -- Test gc_step normalization (negative values become 0)
+    -- Test gc_step normalization (negative values become -1)
     local s3 = new_samples(10, -100)
     assert.equal(s3:capacity(), 10)
+    assert.equal(s3:gc_step(), -1) -- Verify gc_step was normalized
 
     -- Test very large gc_step
     local s4 = new_samples(10, 999999)
     assert.equal(s4:capacity(), 10)
+    assert.equal(s4:gc_step(), 999999) -- Verify gc_step is preserved
 end
 
 function testcase.samples_metadata_preservation()
