@@ -33,7 +33,7 @@ local cv = require('measure.stats.cv')
 -- Constants for statistical calculations
 local STATS_EPSILON = 1e-15
 local MIN_SAMPLE_SIZE = 100 -- Minimum sample size
-local DEFAULT_CONFIDENCE_LEVEL = 0.95
+local DEFAULT_CONFIDENCE_LEVEL = 95
 
 -- Confidence levels
 local CONFIDENCE_LEVEL_90 = 0.90
@@ -332,7 +332,7 @@ end
 --- Using modern coefficient of variation (CV) based calculation
 --- @param current_n number Current sample size
 --- @param target_rciw number Target RCIW value (%)
---- @param confidence_level number Confidence level (e.g., 0.95)
+--- @param confidence_level number Confidence level in ratio format (e.g., 0.95)
 --- @param cv_val number Coefficient of variation
 --- @return number|nil recommended sample size (nil if resampling not needed)
 local function calculate_resample_size(current_n, target_rciw, confidence_level,
@@ -417,14 +417,14 @@ end
 --- Uses appropriate t-values based on degrees of freedom for small samples,
 --- normal distribution approximation for large samples (n >= 30)
 --- @param samples measure.samples An instance of measure.samples
---- @param level number? Confidence level (e.g., 0.95 for 95% confidence). Defaults to 0.95
+--- @param level number? Confidence level (e.g., 95 for 95% confidence). Defaults to 95
 --- @param target_rciw number? Target Relative Confidence Interval Width (%). Defaults to 5.0%
 --- @return table confidence_interval_t structure with comprehensive quality assessment
 local function confidence_interval(samples, level, target_rciw)
-    -- validate confidence level (0 < level < 1)
+    -- validate confidence level (0 < level < 100)
     level = level or DEFAULT_CONFIDENCE_LEVEL
-    assert(type(level) == "number" and level > 0.0 and level < 1.0,
-           "Confidence level must be a number between 0 and 1")
+    assert(type(level) == "number" and level > 0.0 and level < 100.0,
+           "Confidence level must be a number between 0 and 100")
     -- validate target RCIW (0 < target_rciw < 100)
     target_rciw = target_rciw or DEFAULT_TARGET_RCIW
     assert(
@@ -434,13 +434,14 @@ local function confidence_interval(samples, level, target_rciw)
     local result = {
         lower = NaN, -- Lower bound of confidence interval
         upper = NaN, -- Upper bound of confidence interval
-        level = level, -- Confidence level (e.g., 0.95)
+        level = level, -- Confidence level (e.g., 95 for 95%)
         rciw = NaN, -- Relative Confidence Interval Width (%)
         sample_size = samples and #samples or 0, -- Number of samples used for calculation
         quality = "unknown", -- Quality classification: excellent/good/acceptable/poor/unknown
         resample_size = nil, -- Recommended sample size for resampling (nil if not needed)
         confidence_score = 0.0, -- Statistical confidence score (0.0-1.0)
     }
+    local confidence_level = level / 100.0
 
     -- Basic validation
     if not samples or #samples < MIN_SAMPLE_SIZE then
@@ -465,7 +466,7 @@ local function confidence_interval(samples, level, target_rciw)
     else
         -- Get appropriate t-value based on degrees of freedom
         local df = result.sample_size - 1
-        local t_value = get_t_value(df, level)
+        local t_value = get_t_value(df, confidence_level)
 
         local margin = t_value * stderr_val
         result.lower = mean_val - margin
@@ -486,7 +487,8 @@ local function confidence_interval(samples, level, target_rciw)
     -- Calculate quality assessment
     result.quality = classify_quality(result.rciw)
     result.resample_size = calculate_resample_size(result.sample_size,
-                                                   target_rciw, level, cv_val)
+                                                   target_rciw,
+                                                   confidence_level, cv_val)
     result.confidence_score = calculate_confidence_score(result.sample_size,
                                                          result.rciw, cv_val)
 

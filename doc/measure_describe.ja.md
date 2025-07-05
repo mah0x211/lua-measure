@@ -1,11 +1,13 @@
 # Measure Describeモジュール設計書
 
-バージョン: 0.3.0  
-日付: 2025-06-19
+バージョン: 0.4.0  
+日付: 2025-07-05
 
 ## 概要
 
 Measure Describeモジュールは、個々のベンチマーク仕様をカプセル化するベンチマーク記述オブジェクトを定義します。流暢なAPIのためのベンチマークプロパティ、検証ロジック、メソッド実装を定義する構造化された方法を提供します。
+
+バージョン0.4.0では、固定サンプリング（repeats, sample_size）からアダプティブサンプリング（confidence_level, rciw）への移行により、統計的品質に基づく動的サンプル調整が可能になりました。
 
 ## 目的
 
@@ -14,6 +16,7 @@ Measure Describeモジュールは、個々のベンチマーク仕様をカプ�
 - メソッド呼び出し順序と引数の検証
 - 相互排他性ルールの強制
 - 無効な使用に対する明確なエラーメッセージの提供
+- アダプティブサンプリングによる統計的品質の保証
 
 ## モジュール構造
 
@@ -53,10 +56,16 @@ end
 ### 2. ベンチマーク仕様
 
 ```lua
+--- @class measure.describe.spec.options
+--- @field context table|function|nil ベンチマークのコンテキスト
+--- @field warmup number|function|nil 測定前のウォームアップ反復回数
+--- @field confidence_level number|nil 信頼水準（パーセンテージ 0-100、デフォルト: 95）
+--- @field rciw number|nil 相対信頼区間幅（パーセンテージ 0-100、デフォルト: 5）
+
 --- @class measure.describe.spec
 --- @field name string ベンチマークの名前
 --- @field namefn function|nil ベンチマーク名を記述する関数
---- @field options table ベンチマークのオプション
+--- @field options measure.describe.spec.options|nil ベンチマークのオプション
 --- @field setup function|nil ベンチマークのsetup関数
 --- @field setup_once function|nil ベンチマークのsetup_once関数
 --- @field run function|nil ベンチマークのrun関数
@@ -88,12 +97,24 @@ function Describe:options(opts)
         return false, 'options.context must be a table or a function'
     end
     
-    if opts.repeats and type(opts.repeats) ~= 'number' and 
-       type(opts.repeats) ~= 'function' then
-        return false, 'options.repeats must be a number or a function'
+    -- 信頼水準の検証
+    if opts.confidence_level ~= nil then
+        local v = opts.confidence_level
+        if type(v) ~= 'number' or v <= 0 or v > 100 then
+            return false,
+                   'options.confidence_level must be a number between 0 and 100'
+        end
     end
     
-    -- warmup、sample_sizeの追加検証...
+    -- 相対信頼区間幅（RCIW）の検証
+    if opts.rciw ~= nil then
+        local v = opts.rciw
+        if type(v) ~= 'number' or v <= 0 or v > 100 then
+            return false, 'options.rciw must be a number between 0 and 100'
+        end
+    end
+    
+    -- warmupの追加検証...
     
     spec.options = opts
     return true
@@ -248,7 +269,11 @@ local desc = new_describe('String Concat', function(i)
 end)
 
 -- measureモジュールを通じたメソッドチェーン
-desc:options({ warmup = 10 })
+desc:options({ 
+    warmup = 10, 
+    confidence_level = 95,  -- 95%信頼水準
+    rciw = 5                -- 5%相対信頼区間幅
+})
 desc:setup(function(i, ctx) return "test" end)
 desc:run(function(str) return str .. str end)
 ```
@@ -259,4 +284,20 @@ desc:run(function(str) return str .. str end)
 - 名前は文字列でなければならない
 - 関数は関数でなければならない
 - オプションはテーブルでなければならない
-- オプション値は期待される型と一致しなければならない
+- オプション値は期待される型と制約に一致しなければならない
+
+### オプション検証の詳細
+
+- `context`: テーブルまたは関数でなければならない
+- `warmup`: 非負整数または関数でなければならない
+- `confidence_level`: 0から100の間の数値（パーセンテージ）
+- `rciw`: 0から100の間の数値（パーセンテージ）
+
+### アダプティブサンプリング
+
+新しいオプション構造では、統計的品質指標に基づいてサンプル数を動的に調整します：
+
+- **confidence_level**: 信頼区間の統計的信頼度（例：95%）
+- **rciw**: 目標相対信頼区間幅。測定精度の指標として使用され、十分なサンプルが収集されたかを判定します
+
+これにより、固定サンプル数ではなく、統計的品質に基づく適応的なベンチマーキングが可能になります。

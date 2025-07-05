@@ -62,7 +62,7 @@ function testcase.default_level()
     local mean = 1000 + (100 - 1) * 50 / 2 -- average of 1000 to 5950
     assert.less(result.lower, mean)
     assert.greater(result.upper, mean)
-    assert.equal(result.level, 0.95)
+    assert.equal(result.level, 95)
 
     -- test that RCIW is positive and reasonable
     assert.greater(result.rciw, 0)
@@ -92,12 +92,12 @@ function testcase.custom_levels()
     local s = create_mock_samples(time_values)
 
     -- 90% CI
-    local ci90 = ci(s, 0.90)
-    assert.equal(ci90.level, 0.90)
+    local ci90 = ci(s, 90)
+    assert.equal(ci90.level, 90)
 
     -- 99% CI
-    local ci99 = ci(s, 0.99)
-    assert.equal(ci99.level, 0.99)
+    local ci99 = ci(s, 99)
+    assert.equal(ci99.level, 99)
 
     -- 99% CI should be wider than 90% CI
     local width90 = ci90.upper - ci90.lower
@@ -120,9 +120,9 @@ function testcase.error_handling()
         time_values[i] = 1000 + i * 100
     end
     local s = create_mock_samples(time_values)
-    -- Should throw assertion error for invalid level > 1
+    -- Should throw assertion error for invalid level > 100
     assert.throws(function()
-        ci(s, 1.5) -- invalid level > 1
+        ci(s, 150) -- invalid level > 100
     end)
 end
 
@@ -135,26 +135,26 @@ function testcase.large_samples()
     local s = create_mock_samples(time_values)
 
     -- 99% CI should use normal approximation (2.576)
-    local ci99 = ci(s, 0.99)
+    local ci99 = ci(s, 99)
     assert.is_table(ci99)
     assert.is_number(ci99.lower)
     assert.is_number(ci99.upper)
-    assert.equal(ci99.level, 0.99)
+    assert.equal(ci99.level, 99)
 
     -- 95% CI should use normal approximation (1.96)
-    local ci95 = ci(s, 0.95)
+    local ci95 = ci(s, 95)
     assert.is_table(ci95)
     assert.is_number(ci95.lower)
     assert.is_number(ci95.upper)
 
     -- 90% CI should use normal approximation (1.645)
-    local ci90 = ci(s, 0.90)
+    local ci90 = ci(s, 90)
     assert.is_table(ci90)
     assert.is_number(ci90.lower)
     assert.is_number(ci90.upper)
 
     -- test other confidence level that defaults to 1.0
-    local ci50 = ci(s, 0.50)
+    local ci50 = ci(s, 50)
     assert.is_table(ci50)
     assert.is_number(ci50.lower)
     assert.is_number(ci50.upper)
@@ -168,11 +168,11 @@ function testcase.interpolation()
     end
     local s = create_mock_samples(time_values)
 
-    local ci92 = ci(s, 0.92) -- between 90% and 95%
+    local ci92 = ci(s, 92) -- between 90% and 95%
     assert.is_table(ci92)
     assert.is_number(ci92.lower)
     assert.is_number(ci92.upper)
-    assert.equal(ci92.level, 0.92)
+    assert.equal(ci92.level, 92)
 end
 
 function testcase.identical_values()
@@ -214,16 +214,16 @@ function testcase.edge_cases()
 
     -- test confidence level = 0 (invalid) - should throw error
     assert.throws(function()
-        ci(s, 0.0)
+        ci(s, 0)
     end)
 
-    -- test confidence level = 1.0 (invalid) - should throw error
+    -- test confidence level = 100 (invalid) - should throw error
     assert.throws(function()
-        ci(s, 1.0)
+        ci(s, 100)
     end)
 
     -- test very low confidence level (valid)
-    local result3 = ci(s, 0.1)
+    local result3 = ci(s, 10)
     assert.is_table(result3)
     assert.is_number(result3.lower)
     assert.is_number(result3.upper)
@@ -238,24 +238,24 @@ function testcase.interpolation_detailed()
     local s = create_mock_samples(time_values)
 
     -- test that 92% CI is computed (should trigger lines 112-115 if between 90% and 95%)
-    local ci92 = ci(s, 0.92)
+    local ci92 = ci(s, 92)
     assert.is_table(ci92)
     assert.is_number(ci92.lower)
     assert.is_number(ci92.upper)
-    assert.equal(ci92.level, 0.92)
+    assert.equal(ci92.level, 92)
 
     -- For this test, we just verify the interpolation code path exists
     -- The actual interpolation might not be triggered due to the confidence level logic
     -- Let's test a different confidence level that will trigger interpolation
-    local ci91 = ci(s, 0.91) -- between 90% and 95%
+    local ci91 = ci(s, 91) -- between 90% and 95%
     assert.is_table(ci91)
     assert.is_number(ci91.lower)
     assert.is_number(ci91.upper)
-    assert.equal(ci91.level, 0.91)
+    assert.equal(ci91.level, 91)
 
     -- Verify that different confidence levels produce different results
-    local ci90 = ci(s, 0.90)
-    local ci95 = ci(s, 0.95)
+    local ci90 = ci(s, 90)
+    local ci95 = ci(s, 95)
 
     -- 95% CI should be wider than 90% CI
     local width90 = ci90.upper - ci90.lower
@@ -274,7 +274,7 @@ function testcase.extreme_df_cases()
     local large_s = create_mock_samples(large_time_values)
 
     -- test that it uses normal approximation for df > 30
-    local ci_large = ci(large_s, 0.95)
+    local ci_large = ci(large_s, 95)
     assert.is_table(ci_large)
     assert.is_number(ci_large.lower)
     assert.is_number(ci_large.upper)
@@ -289,11 +289,11 @@ function testcase.interpolation_trigger()
     local s = create_mock_samples(time_values)
 
     -- Test confidence level exactly between 90% and 95% to trigger interpolation
-    local ci92 = ci(s, 0.92) -- should trigger interpolation
+    local ci92 = ci(s, 92) -- should trigger interpolation
     assert.is_table(ci92)
     assert.is_number(ci92.lower)
     assert.is_number(ci92.upper)
-    assert.equal(ci92.level, 0.92)
+    assert.equal(ci92.level, 92)
 end
 
 function testcase.extreme_edge_cases()
@@ -303,7 +303,7 @@ function testcase.extreme_edge_cases()
         time_values[i] = 1000 + i * 100
     end
     local s = create_mock_samples(time_values)
-    local result = ci(s, 0.95)
+    local result = ci(s, 95)
     assert.is_table(result)
     assert.is_number(result.lower)
     assert.is_number(result.upper)
@@ -330,26 +330,26 @@ function testcase.force_interpolation()
     local s = create_mock_samples(time_values)
 
     -- Test confidence levels that should fall into the interpolation range
-    -- The condition is: confidence_level > 0.90 AND confidence_level < 0.95
-    local ci921 = ci(s, 0.921) -- between 90% and 95%
+    -- The condition is: confidence_level > 90 AND confidence_level < 95
+    local ci921 = ci(s, 92.1) -- between 90% and 95%
     assert.is_table(ci921)
     assert.is_number(ci921.lower)
     assert.is_number(ci921.upper)
-    assert.equal(ci921.level, 0.921)
+    assert.equal(ci921.level, 92.1)
 
-    local ci935 = ci(s, 0.935) -- another interpolation test
+    local ci935 = ci(s, 93.5) -- another interpolation test
     assert.is_table(ci935)
     assert.is_number(ci935.lower)
     assert.is_number(ci935.upper)
-    assert.equal(ci935.level, 0.935)
+    assert.equal(ci935.level, 93.5)
 
     -- Test edge case: exactly at boundaries (should NOT trigger interpolation)
-    local ci90 = ci(s, 0.90) -- exactly 90%
+    local ci90 = ci(s, 90) -- exactly 90%
     assert.is_table(ci90)
     assert.is_number(ci90.lower)
     assert.is_number(ci90.upper)
 
-    local ci95 = ci(s, 0.95) -- exactly 95%
+    local ci95 = ci(s, 95) -- exactly 95%
     assert.is_table(ci95)
     assert.is_number(ci95.lower)
     assert.is_number(ci95.upper)
@@ -364,17 +364,17 @@ function testcase.large_df_cap()
     local s = create_mock_samples(large_time_values)
 
     -- Test various confidence levels to ensure df capping works
-    local ci90 = ci(s, 0.90)
+    local ci90 = ci(s, 90)
     assert.is_table(ci90)
     assert.is_number(ci90.lower)
     assert.is_number(ci90.upper)
 
-    local ci95 = ci(s, 0.95)
+    local ci95 = ci(s, 95)
     assert.is_table(ci95)
     assert.is_number(ci95.lower)
     assert.is_number(ci95.upper)
 
-    local ci99 = ci(s, 0.99)
+    local ci99 = ci(s, 99)
     assert.is_table(ci99)
     assert.is_number(ci99.lower)
     assert.is_number(ci99.upper)
@@ -388,7 +388,7 @@ function testcase.rciw_calculation()
     end
     local s = create_mock_samples(time_values)
 
-    local result = ci(s, 0.95)
+    local result = ci(s, 95)
     assert.is_table(result)
     assert.is_number(result.rciw)
     assert.greater(result.rciw, 0)
@@ -415,9 +415,9 @@ function testcase.rciw_wider_intervals()
     end
     local s = create_mock_samples(time_values)
 
-    local ci90 = ci(s, 0.90)
-    local ci95 = ci(s, 0.95)
-    local ci99 = ci(s, 0.99)
+    local ci90 = ci(s, 90)
+    local ci95 = ci(s, 95)
+    local ci99 = ci(s, 99)
 
     -- Higher confidence levels should have wider intervals and higher RCIW
     assert.greater(ci95.rciw, ci90.rciw)
@@ -437,7 +437,7 @@ function testcase.rciw_error_cases()
     end
     local s = create_mock_samples(time_values)
     assert.throws(function()
-        ci(s, 1.5)
+        ci(s, 150)
     end)
 
     -- Test with insufficient samples
@@ -459,7 +459,7 @@ function testcase.rciw_zero_mean_edge_case()
     end
     local s = create_mock_samples(time_values)
 
-    local result = ci(s, 0.95)
+    local result = ci(s, 95)
     assert.is_table(result)
     assert.is_number(result.rciw)
     -- When mean is very small, RCIW should still be calculated
@@ -474,7 +474,7 @@ function testcase.rciw_very_small_mean()
     end
     local s = create_mock_samples(time_values)
 
-    local result = ci(s, 0.95)
+    local result = ci(s, 95)
     assert.is_table(result)
     assert.is_number(result.rciw)
     -- For very small means, RCIW should be properly calculated

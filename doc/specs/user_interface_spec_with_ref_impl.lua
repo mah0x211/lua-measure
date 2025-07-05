@@ -44,9 +44,9 @@ function BenchmarkDescribe:options(opts)
         return false, 'options.context must be a table or a function'
     end
 
-    if opts.repeats and type(opts.repeats) ~= 'number' and type(opts.repeats) ~=
-        'function' then
-        return false, 'options.repeats must be a number or a function'
+    if opts.confidence_level and (type(opts.confidence_level) ~= 'number' or
+        opts.confidence_level <= 0 or opts.confidence_level > 100) then
+        return false, 'options.confidence_level must be a number between 0 and 100'
     end
 
     if opts.warmup and type(opts.warmup) ~= 'number' and type(opts.warmup) ~=
@@ -54,9 +54,9 @@ function BenchmarkDescribe:options(opts)
         return false, 'options.warmup must be a number or a function'
     end
 
-    if opts.sample_size and type(opts.sample_size) ~= 'number' and
-        type(opts.sample_size) ~= 'function' then
-        return false, 'options.sample_size must be a number or a function'
+    if opts.rciw and (type(opts.rciw) ~= 'number' or opts.rciw <= 0 or
+        opts.rciw > 100) then
+        return false, 'options.rciw must be a number between 0 and 100'
     end
 
     spec.options = opts
@@ -398,8 +398,7 @@ measure.describe('Example Benchmark', function(i, ctx)
     -- This function will be called with the current repeat count and context
     -- and should return a string to be append to the benchmark name.
     -- If you don't pass a function, it will use the default name
-    -- 'Example Benchmark' or 'Example Benchmark #<i>' if a repeats option is
-    -- specified.
+    -- 'Example Benchmark'.
     return 'hello'
 end).options({
     -- context can be used to pass data to other options functions
@@ -421,19 +420,15 @@ end).options({
     --     }
     -- end,
 
-    -- repeats is the number of times the benchmark will be run.
-    -- It is used to run the benchmark multiple times to get a more accurate result
-    -- If not specified, it defaults to 1
-    repeats = 5,
-    -- You can also define a function to calculate the repeats value.
-    -- This function will be called with the current repeat count and context
-    -- and should return a number to be used as the repeats value.
-    -- This function is useful if you want to calculate the repeats value based
-    -- on the current repeat count or context.
-    -- If you don't pass a function, it will use the default repeats value of 1.
-    -- repeats = function(i, ctx)
-    --     return 5
-    -- end,
+    -- confidence_level is the statistical confidence level for adaptive sampling
+    -- It is used to determine the precision of confidence intervals (0-100)
+    -- If not specified, it defaults to 95 (95%)
+    confidence_level = 95,
+    
+    -- rciw is the target relative confidence interval width for adaptive sampling
+    -- It is used to determine when sufficient samples have been collected (0-100)
+    -- If not specified, it defaults to 5 (5%)
+    rciw = 5,
 
     -- warmup is the number of warmup iterations before the benchmark run.
     -- It is used to warm up the system before the benchmark run
@@ -445,16 +440,6 @@ end).options({
     --     return 5
     -- end,
 
-    -- sample_size is the number of samples to take for the benchmark
-    -- It is used to get a more accurate result by taking multiple samples
-    -- If not specified, it defaults to 10000.
-    sample_size = 10000,
-    -- You can also define a function to calculate the sample_size value.
-    -- This function will be called with the current repeat count and context
-    -- and should return a number to be used as the sample_size value.
-    -- sample_size = function(i, ctx)
-    --     return 10000
-    -- end,
 }) --
 --
 -- NOTE:
