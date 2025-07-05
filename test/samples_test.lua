@@ -153,6 +153,13 @@ function testcase.samples_with_gc_step()
 
     local s4 = new_samples(10, 1024) -- Step GC with 1024KB threshold
     assert.equal(s4:capacity(), 10)
+
+    -- Test bug fix: negative gc_step values should be handled correctly
+    local s5 = new_samples(10, -5) -- Negative value should be converted to -1
+    assert.equal(s5:capacity(), 10)
+
+    local s6 = new_samples(10, -100) -- Another negative value
+    assert.equal(s6:capacity(), 10)
 end
 
 -- Test restoration functionality extensively
