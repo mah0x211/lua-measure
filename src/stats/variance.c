@@ -29,10 +29,6 @@ static int variance_lua(lua_State *L)
 {
     measure_samples_t *samples = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
 
-    if (!validate_samples(samples)) {
-        return luaL_error(L, "invalid samples: contains negative time values");
-    }
-
     double variance = stats_variance(samples);
     lua_pushnumber(L, variance);
     return 1;

@@ -37,7 +37,7 @@ end
 
 -- Test measure.samples module basic functionality
 
-function testcase.samples_new()
+function testcase.constructor_default_values()
     -- Test default capacity
     local s = new_samples()
     assert.match(tostring(s), '^measure.samples: ', false)
@@ -55,7 +55,7 @@ function testcase.samples_new()
     assert.equal(#s, 0)
 end
 
-function testcase.samples_new_invalid_args()
+function testcase.constructor_invalid_arguments()
     -- Test invalid capacity (returns nil + error message)
     local s, err = new_samples(0)
     assert.is_nil(s)
@@ -85,7 +85,7 @@ function testcase.samples_new_invalid_args()
     assert.equal(s:capacity(), 100)
 end
 
-function testcase.samples_dump()
+function testcase.dump_data_structure()
     local s = new_samples(10)
 
     -- Test empty dump with new column-oriented format
@@ -115,7 +115,7 @@ function testcase.samples_dump()
     assert.equal(data.rciw, 5.0)
 end
 
-function testcase.samples_metamethods()
+function testcase.metamethods_functionality()
     local s = new_samples(100)
 
     -- Test __tostring
@@ -128,7 +128,7 @@ function testcase.samples_metamethods()
     assert.equal(getmetatable(s), "metatable is protected")
 end
 
-function testcase.samples_method_protection()
+function testcase.method_type_validation()
     local samples = new_samples(10)
 
     -- Test that we can't call methods on wrong type
@@ -146,7 +146,7 @@ function testcase.samples_method_protection()
     end)
 end
 
-function testcase.samples_with_gc_step()
+function testcase.gc_step_configuration()
     -- Test samples with different GC configurations
     local s1 = new_samples(10) -- Default GC step (0 = full GC)
     assert.equal(s1:capacity(), 10)
@@ -168,7 +168,7 @@ function testcase.samples_with_gc_step()
     assert.equal(s6:capacity(), 10)
 end
 
-function testcase.samples_with_cl_and_rciw()
+function testcase.confidence_level_and_rciw_settings()
     -- Test samples with different cl and rciw configurations
     local s1 = new_samples(10, 0, 95, 5.0) -- Default values
     assert.equal(s1:capacity(), 10)
@@ -352,106 +352,60 @@ function testcase.samples_restore_error_invalid_count()
                  false)
 end
 
-function testcase.samples_restore_error_missing_fields()
-    -- Test missing time_ns field (throws due to type check)
-    assert.throws(function()
-        new_samples({
-            before_kb = {
-                0,
-                0,
-            },
-            after_kb = {
-                0,
-                0,
-            },
-            allocated_kb = {
-                0,
-                0,
-            },
-            capacity = 2,
-            count = 2,
-            gc_step = 0,
-            base_kb = 1,
-            cl = 95,
-            rciw = 5.0,
-            -- Missing time_ns
-        })
-    end)
+function testcase.restore_error_missing_fields()
+    -- Test missing required array fields (throws due to type check)
+    local base_data = {
+        capacity = 2,
+        count = 2,
+        gc_step = 0,
+        base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
+    }
 
-    -- Test missing before_kb field (throws due to type check)
-    assert.throws(function()
-        new_samples({
-            time_ns = {
-                1000,
-                2000,
-            },
-            after_kb = {
-                0,
-                0,
-            },
-            allocated_kb = {
-                0,
-                0,
-            },
-            capacity = 2,
-            count = 2,
-            gc_step = 0,
-            base_kb = 1,
-            cl = 95,
-            rciw = 5.0,
-            -- Missing before_kb
-        })
-    end)
+    local required_fields = {
+        'time_ns',
+        'before_kb',
+        'after_kb',
+        'allocated_kb',
+    }
+    local field_values = {
+        time_ns = {
+            1000,
+            2000,
+        },
+        before_kb = {
+            0,
+            0,
+        },
+        after_kb = {
+            0,
+            0,
+        },
+        allocated_kb = {
+            0,
+            0,
+        },
+    }
 
-    -- Test missing after_kb field (throws due to type check)
-    assert.throws(function()
-        new_samples({
-            time_ns = {
-                1000,
-                2000,
-            },
-            before_kb = {
-                0,
-                0,
-            },
-            allocated_kb = {
-                0,
-                0,
-            },
-            capacity = 2,
-            count = 2,
-            gc_step = 0,
-            base_kb = 1,
-            cl = 95,
-            rciw = 5.0,
-            -- Missing after_kb
-        })
-    end)
+    -- Test each required field is missing
+    for _, missing_field in ipairs(required_fields) do
+        local data = {}
+        -- Copy base data
+        for k, v in pairs(base_data) do
+            data[k] = v
+        end
+        -- Add all fields except the missing one
+        for field, values in pairs(field_values) do
+            if field ~= missing_field then
+                data[field] = values
+            end
+        end
 
-    -- Test missing allocated_kb field (throws due to type check)
-    assert.throws(function()
-        new_samples({
-            time_ns = {
-                1000,
-                2000,
-            },
-            before_kb = {
-                0,
-                0,
-            },
-            after_kb = {
-                0,
-                0,
-            },
-            capacity = 2,
-            count = 2,
-            gc_step = 0,
-            base_kb = 1,
-            cl = 95,
-            rciw = 5.0,
-            -- Missing allocated_kb
-        })
-    end)
+        assert.throws(function()
+            new_samples(data)
+        end)
+    end
 end
 
 function testcase.samples_restore_error_invalid_field_types()
@@ -502,90 +456,24 @@ function testcase.samples_restore_error_invalid_field_types()
     end)
 end
 
-function testcase.samples_restore_error_array_size_mismatch()
-    -- Test time_ns array size mismatch
-    local bad_data1, err1 = new_samples({
-        time_ns = {
-            1000,
-        }, -- Size 1, but count is 2
-        before_kb = {
-            0,
-            0,
-        },
-        after_kb = {
-            0,
-            0,
-        },
-        allocated_kb = {
-            0,
-            0,
-        },
+function testcase.restore_error_array_size_mismatch()
+    -- Test array size mismatch for all required fields
+    local base_data = {
         capacity = 2,
         count = 2,
         gc_step = 0,
         base_kb = 1,
         cl = 95,
         rciw = 5.0,
-    })
-    assert.is_nil(bad_data1)
-    assert.match(err1, "array size does not match", false)
+    }
 
-    -- Test before_kb array size mismatch
-    local bad_data2, err2 = new_samples({
-        time_ns = {
-            1000,
-            2000,
-        },
-        before_kb = {
-            0,
-        }, -- Size 1, but count is 2
-        after_kb = {
-            0,
-            0,
-        },
-        allocated_kb = {
-            0,
-            0,
-        },
-        capacity = 2,
-        count = 2,
-        gc_step = 0,
-        base_kb = 1,
-        cl = 95,
-        rciw = 5.0,
-    })
-    assert.is_nil(bad_data2)
-    assert.match(err2, "array size does not match", false)
-
-    -- Test after_kb array size mismatch
-    local bad_data3, err3 = new_samples({
-        time_ns = {
-            1000,
-            2000,
-        },
-        before_kb = {
-            0,
-            0,
-        },
-        after_kb = {
-            0,
-        }, -- Size 1, but count is 2
-        allocated_kb = {
-            0,
-            0,
-        },
-        capacity = 2,
-        count = 2,
-        gc_step = 0,
-        base_kb = 1,
-        cl = 95,
-        rciw = 5.0,
-    })
-    assert.is_nil(bad_data3)
-    assert.match(err3, "array size does not match", false)
-
-    -- Test allocated_kb array size mismatch
-    local bad_data4, err4 = new_samples({
+    local array_fields = {
+        'time_ns',
+        'before_kb',
+        'after_kb',
+        'allocated_kb',
+    }
+    local correct_values = {
         time_ns = {
             1000,
             2000,
@@ -600,19 +488,35 @@ function testcase.samples_restore_error_array_size_mismatch()
         },
         allocated_kb = {
             0,
-        }, -- Size 1, but count is 2
-        capacity = 2,
-        count = 2,
-        gc_step = 0,
-        base_kb = 1,
-        cl = 95,
-        rciw = 5.0,
-    })
-    assert.is_nil(bad_data4)
-    assert.match(err4, "array size does not match", false)
+            0,
+        },
+    }
+
+    -- Test each array field with wrong size
+    for _, field in ipairs(array_fields) do
+        local data = {}
+        -- Copy base data
+        for k, v in pairs(base_data) do
+            data[k] = v
+        end
+        -- Add all fields with correct size
+        for f, values in pairs(correct_values) do
+            if f == field then
+                data[f] = {
+                    values[1],
+                } -- Wrong size (1 instead of 2)
+            else
+                data[f] = values -- Correct size
+            end
+        end
+
+        local result, err = new_samples(data)
+        assert.is_nil(result)
+        assert.match(err, "array size does not match", false)
+    end
 end
 
-function testcase.samples_restore_error_non_numeric_values()
+function testcase.restore_error_time_ns_non_numeric()
     -- Test non-numeric values in time_ns (returns nil + error)
     local bad_data1, err1 = new_samples({
         time_ns = {
@@ -640,7 +544,9 @@ function testcase.samples_restore_error_non_numeric_values()
     })
     assert.is_nil(bad_data1)
     assert.match(err1, "must be a integer >= 0")
+end
 
+function testcase.restore_error_before_kb_non_numeric()
     -- Test non-numeric values in before_kb (returns nil + error)
     local bad_data2, err2 = new_samples({
         time_ns = {
@@ -668,7 +574,9 @@ function testcase.samples_restore_error_non_numeric_values()
     })
     assert.is_nil(bad_data2)
     assert.match(err2, "must be a integer >= 0")
+end
 
+function testcase.restore_error_after_kb_non_numeric()
     -- Test non-numeric values in after_kb (returns nil + error)
     local bad_data3, err3 = new_samples({
         time_ns = {
@@ -696,7 +604,9 @@ function testcase.samples_restore_error_non_numeric_values()
     })
     assert.is_nil(bad_data3)
     assert.match(err3, "must be a integer >= 0")
+end
 
+function testcase.restore_error_allocated_kb_non_numeric()
     -- Test non-numeric values in allocated_kb (returns nil + error)
     local bad_data4, err4 = new_samples({
         time_ns = {

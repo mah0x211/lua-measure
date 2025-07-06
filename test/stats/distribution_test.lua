@@ -2,36 +2,10 @@ local testcase = require('testcase')
 local assert = require('assert')
 local distribution = require('measure.stats.distribution')
 local samples = require('measure.samples')
+local mock_samples = require('./test/helpers/mock_samples')
 
--- Helper function to create mock samples with known time values
-local function create_mock_samples(time_values)
-    local count = #time_values
-    local data = {
-        time_ns = {},
-        before_kb = {},
-        after_kb = {},
-        allocated_kb = {},
-        capacity = count,
-        count = count,
-        gc_step = 0,
-        base_kb = 1,
-        cl = 95,
-        rciw = 5.0,
-    }
-
-    for i, time_ns in ipairs(time_values) do
-        data.time_ns[i] = time_ns
-        data.before_kb[i] = 0
-        data.after_kb[i] = 0
-        data.allocated_kb[i] = 0
-    end
-
-    local s, err = samples(data)
-    if not s then
-        error("Failed to create mock samples: " .. (err or "unknown error"))
-    end
-    return s
-end
+-- Import helper function
+local create_mock_samples = mock_samples.create_mock_samples
 
 -- Test histogram/distribution calculation
 function testcase.basic()

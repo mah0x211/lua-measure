@@ -117,10 +117,6 @@ static int distribution_lua(lua_State *L)
     measure_samples_t *samples = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
     lua_Integer bins = luaL_optinteger(L, 2, DEFAULT_DISTRIBUTION_BINS);
 
-    if (!validate_samples(samples)) {
-        return luaL_error(L, "invalid samples: contains negative time values");
-    }
-
     if (!validate_positive_number(bins)) {
         return luaL_error(L, "number of bins must be positive, got %d",
                           (int)bins);
