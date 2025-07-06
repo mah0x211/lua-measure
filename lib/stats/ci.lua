@@ -411,21 +411,13 @@ end
 --- Calculate confidence interval for the mean using t-distribution
 --- Uses appropriate t-values based on degrees of freedom for small samples,
 --- normal distribution approximation for large samples (n >= 30)
---- @param samples measure.samples An instance of measure.samples
---- @param options table? Optional configuration table
+--- @param samples measure.samples An instance of measure.samples with cl() and rciw() methods
 --- @return table confidence_interval_t structure with comprehensive quality assessment
-local function confidence_interval(samples, options)
-    options = options or {}
-
-    -- Throw error for nil samples instead of returning NaN
-    if not samples then
-        error("samples argument is required")
-    end
-
+local function confidence_interval(samples)
     -- Use confidence_level from options if provided, otherwise from samples
-    local level = options.confidence_level or samples:cl()
+    local level = samples:cl()
     -- Use target_rciw from options if provided, otherwise from samples
-    local target_rciw = options.target_rciw or samples:rciw()
+    local target_rciw = samples:rciw()
     local result = {
         lower = NaN, -- Lower bound of confidence interval
         upper = NaN, -- Upper bound of confidence interval
