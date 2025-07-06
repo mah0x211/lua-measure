@@ -3,14 +3,53 @@ local testcase = require('testcase')
 local assert = require('assert')
 local getfiletype = require('measure.getfiletype')
 
+-- Temporary file management
+local TMPFILES = {}
+
+-- Helper function to create unique temporary directory
+local function create_temp_dir()
+    local tmp_name = "tmp_" .. os.time() .. "_" .. math.random(10000, 99999)
+    local tmp_path = "test/" .. tmp_name
+    os.execute('mkdir -p "' .. tmp_path .. '"')
+    TMPFILES[tmp_path] = 'dir'
+    return tmp_path
+end
+
+-- Helper function to create temporary file
+local function create_temp_file(content, filename, temp_dir)
+    local file_path
+    if temp_dir then
+        file_path = temp_dir .. "/" .. filename
+    else
+        local tmp_dir = create_temp_dir()
+        file_path = tmp_dir .. "/" .. filename
+    end
+    local f = assert(io.open(file_path, 'w'))
+    f:write(content)
+    f:close()
+    TMPFILES[file_path] = 'file'
+    return file_path
+end
+
+-- Helper function to cleanup all temporary files
+local function cleanup_temp_files()
+    for filename, ftype in pairs(TMPFILES) do
+        if ftype == 'dir' then
+            os.execute('rm -rf "' .. filename .. '"')
+        else
+            os.remove(filename)
+        end
+    end
+    TMPFILES = {}
+end
+
 function testcase.before_all()
-    -- Create test directory if not exists
-    os.execute('mkdir -p test/tmp')
+    -- Base temporary directory will be created by individual tests
 end
 
 function testcase.after_all()
-    -- Clean up test files
-    os.execute('rm -rf test/tmp/test_*')
+    -- Clean up all temporary files and directories
+    cleanup_temp_files()
 end
 
 function testcase.module_loading()
@@ -20,70 +59,44 @@ end
 
 function testcase.regular_file()
     -- Test regular file detection
-
-    -- Create a test file
-    local test_file = 'test/tmp/test_regular_file.txt'
-    local f = io.open(test_file, 'w')
-    f:write('test content')
-    f:close()
-
+    local test_file = create_temp_file('test content', 'test_regular_file.txt')
     local result = getfiletype(test_file)
     assert.equal(result, 'file')
-
-    -- Clean up
-    os.remove(test_file)
 end
 
 function testcase.directory()
     -- Test directory detection
-
-    local test_dir = 'test/tmp/test_directory'
-    os.execute('mkdir -p ' .. test_dir)
-
+    local test_dir = create_temp_dir()
     local result = getfiletype(test_dir)
     assert.equal(result, 'directory')
-
-    -- Clean up
-    os.execute('rmdir ' .. test_dir)
 end
 
 function testcase.symbolic_link()
     -- Test symbolic link detection
-
-    -- Create a symlink in test directory
-    local test_file = 'test/tmp/test_target_file.txt'
-    local f = io.open(test_file, 'w')
-    f:write('target content')
-    f:close()
+    local temp_dir = create_temp_dir()
+    create_temp_file('target content', 'test_target_file.txt', temp_dir)
+    local test_link = temp_dir .. '/test_symlink'
 
     -- Create symlink
-    local test_link = 'test/tmp/test_symlink'
-    os.execute('ln -sf test_target_file.txt ' .. test_link)
+    os.execute('ln -sf test_target_file.txt "' .. test_link .. '"')
+    TMPFILES[test_link] = 'file'
 
     -- lstat should detect symlinks
     local result = getfiletype(test_link)
     assert.equal(result, 'symlink')
-
-    -- Clean up
-    os.remove(test_link)
-    os.remove(test_file)
 end
 
 function testcase.fifo()
     -- Test FIFO/named pipe detection
-
-    -- Force create a test FIFO
-    local test_fifo = 'test/tmp/test_fifo_' .. os.time()
-    os.execute('rm -f ' .. test_fifo) -- Remove if exists
-    local exit_code = os.execute('mkfifo ' .. test_fifo .. ' 2>/dev/null')
+    local temp_dir = create_temp_dir()
+    local test_fifo = temp_dir .. '/test_fifo_' .. os.time()
+    local exit_code = os.execute('mkfifo "' .. test_fifo .. '" 2>/dev/null')
 
     if exit_code == 0 then
         -- FIFO was created successfully
+        TMPFILES[test_fifo] = 'file'
         local result = getfiletype(test_fifo)
         assert.equal(result, 'fifo')
-
-        -- Clean up
-        os.remove(test_fifo)
     else
         -- If mkfifo is not available, try to find existing FIFOs
         local fifos = {
@@ -168,8 +181,10 @@ end
 
 function testcase.nonexistent_file()
     -- Test error handling for nonexistent file
+    local temp_dir = create_temp_dir()
+    local nonexistent_path = temp_dir .. '/nonexistent_file_12345'
 
-    local result, err, errno = getfiletype('test/tmp/nonexistent_file_12345')
+    local result, err, errno = getfiletype(nonexistent_path)
     assert.is_nil(result)
     assert.is_string(err)
     assert.is_number(errno)
@@ -182,24 +197,18 @@ end
 
 function testcase.permission_denied()
     -- Test error handling for permission denied
-
-    -- Create a file and remove read permissions
-    local test_file = 'test/tmp/test_no_permission.txt'
-    local f = io.open(test_file, 'w')
-    f:write('test')
-    f:close()
+    local test_file = create_temp_file('test', 'test_no_permission.txt')
 
     -- Remove all permissions
-    os.execute('chmod 000 ' .. test_file)
+    os.execute('chmod 000 "' .. test_file .. '"')
 
     local result, err = getfiletype(test_file)
     -- lstat can still read file stats even without read permission
     -- so we might get a result or an error depending on the system
     assert.is_true((result == 'file') or (err ~= nil))
 
-    -- Clean up
-    os.execute('chmod 644 ' .. test_file)
-    os.remove(test_file)
+    -- Restore permissions for cleanup
+    os.execute('chmod 644 "' .. test_file .. '"')
 end
 
 function testcase.invalid_argument_type()
@@ -241,17 +250,17 @@ end
 
 function testcase.socket_file()
     -- Test socket detection
+    local temp_dir = create_temp_dir()
+    local socket_path = temp_dir .. '/test_socket_' .. os.time()
 
-    -- Create a socket in test directory
-    local socket_path = 'test/tmp/test_socket_' .. os.time()
     -- Use nc (netcat) to create a Unix domain socket
-    os.execute('rm -f ' .. socket_path)
-    os.execute('nc -lU ' .. socket_path .. ' >/dev/null 2>&1 &')
+    os.execute('nc -lU "' .. socket_path .. '" >/dev/null 2>&1 &')
     -- Give it time to create the socket
     os.execute('sleep 0.2')
 
     -- Check if socket was created
     if os.execute('test -S "' .. socket_path .. '"') == 0 then
+        TMPFILES[socket_path] = 'file'
         local result = getfiletype(socket_path)
         assert.equal(result, 'socket')
     else
@@ -259,45 +268,27 @@ function testcase.socket_file()
         print('Skipping socket test as nc command failed to create a socket')
     end
 
-    -- Kill nc process and clean up
+    -- Kill nc process
     os.execute('pkill -f "nc -lU ' .. socket_path .. '"')
-    os.execute('rm -f ' .. socket_path)
 end
 
 function testcase.multiple_calls()
     -- Test multiple calls to ensure no state corruption
-
-    -- Create test files
-    local test_file1 = 'test/tmp/test_file1.txt'
-    local test_file2 = 'test/tmp/test_file2.txt'
-    local test_dir = 'test/tmp/test_dir'
-
-    local f1 = io.open(test_file1, 'w')
-    f1:write('test1')
-    f1:close()
-
-    local f2 = io.open(test_file2, 'w')
-    f2:write('test2')
-    f2:close()
-
-    os.execute('mkdir -p ' .. test_dir)
+    local temp_dir = create_temp_dir()
+    local test_file1 = create_temp_file('test1', 'test_file1.txt', temp_dir)
+    local test_file2 = create_temp_file('test2', 'test_file2.txt', temp_dir)
 
     -- Test multiple calls
     assert.equal(getfiletype(test_file1), 'file')
-    assert.equal(getfiletype(test_dir), 'directory')
+    assert.equal(getfiletype(temp_dir), 'directory')
     assert.equal(getfiletype(test_file2), 'file')
-    assert.equal(getfiletype(test_dir), 'directory')
-
-    -- Clean up
-    os.remove(test_file1)
-    os.remove(test_file2)
-    os.execute('rmdir ' .. test_dir)
+    assert.equal(getfiletype(temp_dir), 'directory')
 end
 
 function testcase.very_long_path()
     -- Test with a very long path
-
-    local long_path = 'test/tmp/' .. string.rep('a', 1000) .. '.txt'
+    local temp_dir = create_temp_dir()
+    local long_path = temp_dir .. '/' .. string.rep('a', 1000) .. '.txt'
     local result, err, errno = getfiletype(long_path)
 
     -- Should get an error for such a long path
@@ -308,20 +299,19 @@ end
 
 function testcase.path_with_special_characters()
     -- Test with special characters in path
-
-    local special_file = 'test/tmp/test file with spaces & symbols!.txt'
+    local temp_dir = create_temp_dir()
+    local special_file = temp_dir .. '/test file with spaces & symbols!.txt'
     local f = io.open(special_file, 'w')
     if f then
         f:write('test content')
         f:close()
+        TMPFILES[special_file] = 'file'
 
         local result = getfiletype(special_file)
         assert.equal(result, 'file')
-
-        os.remove(special_file)
     else
         -- If we can't create the file, test with a known invalid special path
-        local result, err, errno = getfiletype('test/tmp/\0invalid')
+        local result, err, errno = getfiletype(temp_dir .. '/\0invalid')
         assert.is_nil(result)
         assert.is_string(err)
         assert.is_number(errno)
