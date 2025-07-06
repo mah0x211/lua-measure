@@ -29,10 +29,6 @@ static int percentile_lua(lua_State *L)
     measure_samples_t *samples = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
     double p                   = luaL_checknumber(L, 2);
 
-    if (!validate_samples(samples)) {
-        return luaL_error(L, "invalid samples: contains negative time values");
-    }
-
     if (!validate_percentile(p)) {
         return luaL_error(L, "percentile must be between 0 and 100, got %f", p);
     }

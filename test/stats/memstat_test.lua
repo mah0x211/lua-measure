@@ -2,36 +2,11 @@ local testcase = require('testcase')
 local assert = require('assert')
 local memstat = require('measure.stats.memstat')
 local samples = require('measure.samples')
+local mock_samples = require('./test/helpers/mock_samples')
 
--- Helper function to create mock samples with memory allocation data
-local function create_mock_samples_with_memory(time_values, memory_data)
-    local count = #time_values
-    local data = {
-        time_ns = {},
-        before_kb = {},
-        after_kb = {},
-        allocated_kb = {},
-        capacity = count,
-        count = count,
-        gc_step = 0,
-        base_kb = 1,
-        cl = 95,
-        rciw = 5.0,
-    }
-
-    for i, time_ns in ipairs(time_values) do
-        data.time_ns[i] = time_ns
-        data.before_kb[i] = memory_data.before_kb[i] or 100
-        data.after_kb[i] = memory_data.after_kb[i] or 150
-        data.allocated_kb[i] = memory_data.allocated_kb[i] or 50
-    end
-
-    local s, err = samples(data)
-    if not s then
-        error("Failed to create mock samples: " .. (err or "unknown error"))
-    end
-    return s
-end
+-- Import helper functions
+local create_mock_samples_with_memory =
+    mock_samples.create_mock_samples_with_memory
 
 -- Test memory allocation pattern analysis
 function testcase.basic()

@@ -96,10 +96,6 @@ static int trend_lua(lua_State *L)
 {
     measure_samples_t *samples = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
 
-    if (!validate_samples(samples)) {
-        return luaL_error(L, "invalid samples: contains negative time values");
-    }
-
     trend_t trend = stats_trend(samples);
     lua_createtable(L, 0, 3);
     lua_pushnumber(L, trend.slope);
