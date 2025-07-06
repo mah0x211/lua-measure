@@ -28,254 +28,16 @@ local ceil = math.ceil
 local mean = require('measure.stats.mean')
 local stddev = require('measure.stats.stddev')
 local cv = require('measure.stats.cv')
+local quantile = require('measure.quantile')
 
 -- Constants for statistical calculations
 local STATS_EPSILON = 1e-15
 local MIN_SAMPLE_SIZE = 100 -- Minimum sample size
 
--- Confidence levels
-local CONFIDENCE_LEVEL_90 = 0.90
-local CONFIDENCE_LEVEL_95 = 0.95
-local CONFIDENCE_LEVEL_99 = 0.99
-
 -- Quality assessment thresholds based on RCIW (%)
 local QUALITY_EXCELLENT = 2.0 -- Bootstrap-equivalent precision
 local QUALITY_GOOD = 5.0 -- Practical precision (recommended default)
 local QUALITY_ACCEPTABLE = 10.0 -- Minimum acceptable level
-
--- T-distribution critical values for common confidence levels
--- Indexed by degrees of freedom (df = n - 1)
--- For df >= 30, use normal distribution approximation
-local t_table = {
-    {
-        df = 1,
-        t_90 = 6.314,
-        t_95 = 12.706,
-        t_99 = 63.657,
-    },
-    {
-        df = 2,
-        t_90 = 2.920,
-        t_95 = 4.303,
-        t_99 = 9.925,
-    },
-    {
-        df = 3,
-        t_90 = 2.353,
-        t_95 = 3.182,
-        t_99 = 5.841,
-    },
-    {
-        df = 4,
-        t_90 = 2.132,
-        t_95 = 2.776,
-        t_99 = 4.604,
-    },
-    {
-        df = 5,
-        t_90 = 2.015,
-        t_95 = 2.571,
-        t_99 = 4.032,
-    },
-    {
-        df = 6,
-        t_90 = 1.943,
-        t_95 = 2.447,
-        t_99 = 3.707,
-    },
-    {
-        df = 7,
-        t_90 = 1.895,
-        t_95 = 2.365,
-        t_99 = 3.499,
-    },
-    {
-        df = 8,
-        t_90 = 1.860,
-        t_95 = 2.306,
-        t_99 = 3.355,
-    },
-    {
-        df = 9,
-        t_90 = 1.833,
-        t_95 = 2.262,
-        t_99 = 3.250,
-    },
-    {
-        df = 10,
-        t_90 = 1.812,
-        t_95 = 2.228,
-        t_99 = 3.169,
-    },
-    {
-        df = 11,
-        t_90 = 1.796,
-        t_95 = 2.201,
-        t_99 = 3.106,
-    },
-    {
-        df = 12,
-        t_90 = 1.782,
-        t_95 = 2.179,
-        t_99 = 3.055,
-    },
-    {
-        df = 13,
-        t_90 = 1.771,
-        t_95 = 2.160,
-        t_99 = 3.012,
-    },
-    {
-        df = 14,
-        t_90 = 1.761,
-        t_95 = 2.145,
-        t_99 = 2.977,
-    },
-    {
-        df = 15,
-        t_90 = 1.753,
-        t_95 = 2.131,
-        t_99 = 2.947,
-    },
-    {
-        df = 16,
-        t_90 = 1.746,
-        t_95 = 2.120,
-        t_99 = 2.921,
-    },
-    {
-        df = 17,
-        t_90 = 1.740,
-        t_95 = 2.110,
-        t_99 = 2.898,
-    },
-    {
-        df = 18,
-        t_90 = 1.734,
-        t_95 = 2.101,
-        t_99 = 2.878,
-    },
-    {
-        df = 19,
-        t_90 = 1.729,
-        t_95 = 2.093,
-        t_99 = 2.861,
-    },
-    {
-        df = 20,
-        t_90 = 1.725,
-        t_95 = 2.086,
-        t_99 = 2.845,
-    },
-    {
-        df = 21,
-        t_90 = 1.721,
-        t_95 = 2.080,
-        t_99 = 2.831,
-    },
-    {
-        df = 22,
-        t_90 = 1.717,
-        t_95 = 2.074,
-        t_99 = 2.819,
-    },
-    {
-        df = 23,
-        t_90 = 1.714,
-        t_95 = 2.069,
-        t_99 = 2.807,
-    },
-    {
-        df = 24,
-        t_90 = 1.711,
-        t_95 = 2.064,
-        t_99 = 2.797,
-    },
-    {
-        df = 25,
-        t_90 = 1.708,
-        t_95 = 2.060,
-        t_99 = 2.787,
-    },
-    {
-        df = 26,
-        t_90 = 1.706,
-        t_95 = 2.056,
-        t_99 = 2.779,
-    },
-    {
-        df = 27,
-        t_90 = 1.703,
-        t_95 = 2.052,
-        t_99 = 2.771,
-    },
-    {
-        df = 28,
-        t_90 = 1.701,
-        t_95 = 2.048,
-        t_99 = 2.763,
-    },
-    {
-        df = 29,
-        t_90 = 1.699,
-        t_95 = 2.045,
-        t_99 = 2.756,
-    },
-    {
-        df = 30,
-        t_90 = 1.697,
-        t_95 = 2.042,
-        t_99 = 2.750,
-    },
-}
-
--- Helper function to get t-value for given confidence level and degrees of freedom
-local function get_t_value(df, confidence_level)
-    -- For large samples (df >= 30), use normal distribution approximation
-    if df >= 30 then
-        if confidence_level >= CONFIDENCE_LEVEL_99 then
-            return 2.576
-        end
-        if confidence_level >= CONFIDENCE_LEVEL_95 then
-            return 1.96
-        end
-        if confidence_level >= CONFIDENCE_LEVEL_90 then
-            return 1.645
-        end
-        return 1.0
-    end
-
-    -- Use t-table for small samples
-    if df == 0 then
-        df = 1 -- Minimum df = 1
-    end
-    if df > 30 then
-        df = 30 -- Cap at 30
-    end
-
-    local row = t_table[df]
-    if confidence_level >= CONFIDENCE_LEVEL_99 then
-        return row.t_99
-    end
-    if confidence_level >= CONFIDENCE_LEVEL_95 then
-        return row.t_95
-    end
-    if confidence_level >= CONFIDENCE_LEVEL_90 then
-        return row.t_90
-    end
-
-    -- For other confidence levels, interpolate between 90% and 95%
-    if confidence_level > CONFIDENCE_LEVEL_90 and confidence_level <
-        CONFIDENCE_LEVEL_95 then
-        local t90 = row.t_90
-        local t95 = row.t_95
-        local ratio = (confidence_level - CONFIDENCE_LEVEL_90) /
-                          (CONFIDENCE_LEVEL_95 - CONFIDENCE_LEVEL_90)
-        return t90 + ratio * (t95 - t90)
-    end
-
-    return row.t_90 -- Default to 90%
-end
 
 -- NaN value for error handling
 local NaN = 0 / 0
@@ -323,47 +85,50 @@ local function classify_quality(rciw)
     end
 end
 
---- Calculate recommended sample size for resampling (nil if not needed)
---- Using modern coefficient of variation (CV) based calculation
---- @param current_n number Current sample size
+--- Calculate recommended sample size for resampling based on actual measurements
+--- Uses real-time half-width comparison for adaptive sampling (ChatGPT o3 approach)
+--- @param samples measure.samples Current samples data
 --- @param target_rciw number Target RCIW value (%)
---- @param confidence_level number Confidence level in ratio format (e.g., 0.95)
---- @param cv_val number Coefficient of variation
---- @return number|nil recommended sample size (nil if resampling not needed)
-local function calculate_resample_size(current_n, target_rciw, confidence_level,
-                                       cv_val)
-    -- Calculate coefficient of variation using the CV module
-    if is_nan(cv_val) then
-        return MIN_SAMPLE_SIZE -- Default to minimum resample size
+--- @param confidence_level number Confidence level in ratio format (e.g., 0.97)
+--- @param current_mean number Current mean of samples
+--- @param current_stderr number Current standard error
+--- @return number|nil recommended sample size (nil if target achieved)
+local function calculate_resample_size(samples, target_rciw, confidence_level,
+                                       current_mean, current_stderr)
+    local current_n = #samples
+
+    -- Basic validation
+    if current_n < 2 or is_nan(current_mean) or is_nan(current_stderr) then
+        return MIN_SAMPLE_SIZE
     end
 
-    -- Convert RCIW from percentage to ratio
-    local r = target_rciw / 100.0
+    -- Convert target RCIW to target half-width (δ)
+    -- RCIW = 2 * half-width / mean * 100%
+    -- Therefore: half-width = RCIW * mean / 200
+    local target_half_width = target_rciw * abs(current_mean) / 200.0
 
-    -- Get z-value for confidence level
-    local z_value
-    if confidence_level >= CONFIDENCE_LEVEL_99 then
-        z_value = 2.576
-    elseif confidence_level >= CONFIDENCE_LEVEL_95 then
-        z_value = 1.96
-    elseif confidence_level >= CONFIDENCE_LEVEL_90 then
-        z_value = 1.645
-    else
-        z_value = 1.96 -- Default to 95%
+    -- Get appropriate critical value (t or z)
+    local critical_value = quantile(confidence_level)
+
+    -- Calculate current half-width from actual measurements
+    local current_half_width = critical_value * current_stderr
+
+    -- ChatGPT o3 stopping condition: half <= delta
+    if current_half_width <= target_half_width then
+        return nil -- Target achieved, no resampling needed
     end
 
-    -- Modern formula: n = (z * CV / r)^2
-    local target_n = (z_value * cv_val / r) ^ 2
+    -- If target not achieved, estimate required sample size
+    -- Formula: n_req = (critical_value * stddev / target_half_width)^2
+    local current_stddev = current_stderr * sqrt(current_n)
+    local estimated_n = (critical_value * current_stddev / target_half_width) ^
+                            2
 
-    -- Apply minimum samples for statistical validity and practical use
-    target_n = max(ceil(target_n), MIN_SAMPLE_SIZE)
+    -- Apply minimum and reasonable upper bound
+    estimated_n = max(ceil(estimated_n), current_n + 30) -- At least 30 more samples
+    estimated_n = min(estimated_n, 10000) -- Cap at 10000 samples
 
-    -- Return nil if current samples are sufficient
-    if target_n <= current_n then
-        return nil
-    end
-
-    return target_n
+    return estimated_n
 end
 
 --- Calculate confidence score based on statistical indicators
@@ -451,9 +216,8 @@ local function confidence_interval(samples)
         result.upper = mean_val
         result.rciw = 0.0 -- RCIW is 0% when all values are identical
     else
-        -- Get appropriate t-value based on degrees of freedom
-        local df = result.sample_size - 1
-        local t_value = get_t_value(df, confidence_level)
+        -- Get appropriate t-value for confidence level
+        local t_value = quantile(confidence_level)
 
         local margin = t_value * stderr_val
         result.lower = mean_val - margin
@@ -473,9 +237,9 @@ local function confidence_interval(samples)
 
     -- Calculate quality assessment
     result.quality = classify_quality(result.rciw)
-    result.resample_size = calculate_resample_size(result.sample_size,
-                                                   target_rciw,
-                                                   confidence_level, cv_val)
+    result.resample_size = calculate_resample_size(samples, target_rciw,
+                                                   confidence_level, mean_val,
+                                                   stderr_val)
     result.confidence_score = calculate_confidence_score(result.sample_size,
                                                          result.rciw, cv_val)
 
