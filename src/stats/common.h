@@ -142,22 +142,6 @@ static inline double get_t_value(size_t df, double confidence_level)
     return t_table[idx].t_90; // Default to 90%
 }
 
-// Helper function to validate samples data
-static inline int validate_samples(const measure_samples_t *samples)
-{
-    if (!samples || !samples->data) {
-        return 0;
-    }
-
-    // Check for negative time values
-    for (size_t i = 0; i < samples->count; i++) {
-        if (samples->data[i].time_ns < 0) {
-            return 0;
-        }
-    }
-
-    return 1;
-}
 
 // Helper function to check if a double value is valid (not NaN or Inf)
 static inline int is_valid_number(double value)

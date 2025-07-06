@@ -168,10 +168,6 @@ static int outliers_lua(lua_State *L)
     measure_samples_t *samples = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
     const char *method_str     = luaL_optstring(L, 2, "tukey");
 
-    if (!validate_samples(samples)) {
-        return luaL_error(L, "invalid samples: contains negative time values");
-    }
-
     outlier_method_t method;
     if (strcmp(method_str, "tukey") == 0) {
         method = MEASURE_OUTLIER_TUKEY;

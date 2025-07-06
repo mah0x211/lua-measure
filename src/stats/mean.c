@@ -28,10 +28,6 @@ static int mean_lua(lua_State *L)
 {
     measure_samples_t *samples = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
 
-    if (!validate_samples(samples)) {
-        return luaL_error(L, "invalid samples: contains negative time values");
-    }
-
     // Calculate mean of samples
     double mean = stats_mean(samples);
     lua_pushnumber(L, mean);

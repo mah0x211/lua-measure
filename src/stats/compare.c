@@ -130,14 +130,6 @@ static int compare_lua(lua_State *L)
     measure_samples_t *samples1 = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
     measure_samples_t *samples2 = luaL_checkudata(L, 2, MEASURE_SAMPLES_MT);
 
-    if (!validate_samples(samples1)) {
-        return luaL_error(L, "invalid samples1: contains negative time values");
-    }
-
-    if (!validate_samples(samples2)) {
-        return luaL_error(L, "invalid samples2: contains negative time values");
-    }
-
     comparison_t comp = stats_compare(samples1, samples2);
 
     lua_createtable(L, 0, 4);

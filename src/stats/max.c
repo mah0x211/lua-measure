@@ -30,10 +30,6 @@ static int max_lua(lua_State *L)
 {
     measure_samples_t *samples = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
 
-    if (!validate_samples(samples)) {
-        return luaL_error(L, "invalid samples: contains negative time values");
-    }
-
     // Check for empty data - return NaN for empty samples
     if (samples->count == 0) {
         lua_pushnumber(L, NAN);
