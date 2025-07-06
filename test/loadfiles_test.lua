@@ -11,23 +11,29 @@ local original_print = print
 
 -- Helper function to create files and track them
 local function create_file(filename, content)
-    local f = io.open(filename, 'w')
-    if f then
-        f:write(content or '')
-        f:close()
-        TMPFILES[filename] = 'file'
-        return true
+    local f, err = io.open(filename, 'w')
+    if not f then
+        error('Failed to create file "' .. filename .. '": ' ..
+                  (err or 'unknown error'))
     end
-    return false
+    f:write(content or '')
+    f:close()
+    TMPFILES[filename] = 'file'
 end
 
 -- Helper function to create directories and track them
 local function create_dir(dirname)
-    if os.execute('mkdir -p ' .. dirname) == 0 then
+    local cmd = 'mkdir -p "' .. dirname .. '" 2>&1'
+    local handle = io.popen(cmd)
+    local output = handle:read("*a")
+    local success = handle:close()
+
+    if success then
         TMPFILES[dirname] = 'dir'
-        return true
+    else
+        local error_msg = output and output:gsub('\n$', '') or 'unknown error'
+        error('Failed to create directory "' .. dirname .. '": ' .. error_msg)
     end
-    return false
 end
 
 -- Helper functions for print output capturing
@@ -46,30 +52,61 @@ local function uncapture_print()
     _G.print = original_print
 end
 
+-- Helper function to create unique temporary directory
+local function create_temp_dir()
+    local tmp_name = "tmp_" .. os.time() .. "_" .. math.random(10000, 99999)
+    local tmp_path = "test/" .. tmp_name
+    os.execute('mkdir -p "' .. tmp_path .. '"')
+    TMPFILES[tmp_path] = 'dir'
+    return tmp_path
+end
+
+-- Helper function to cleanup all temporary files
+local function cleanup_temp_files()
+    for filename, ftype in pairs(TMPFILES) do
+        if ftype == 'dir' then
+            os.execute('rm -rf "' .. filename .. '"')
+        else
+            os.remove(filename)
+        end
+    end
+    TMPFILES = {}
+end
+
+local BENCH_FILES_DIR
+local EMPTY_DIR
+local MIXED_DIR
+
 function testcase.before_all()
-    -- Ensure test directories exist
-    os.execute('mkdir -p tmp/bench_files tmp/empty_dir tmp/mixed_dir')
+    -- Create tmp directory for tests that use hardcoded tmp/ paths
+    create_dir('tmp')
+
+    -- Create base temporary directories for tests
+    local base_tmp = create_temp_dir()
+    BENCH_FILES_DIR = base_tmp .. "/bench_files"
+    EMPTY_DIR = base_tmp .. "/empty_dir"
+    MIXED_DIR = base_tmp .. "/mixed_dir"
+
+    os.execute('mkdir -p "' .. BENCH_FILES_DIR .. '"')
+    os.execute('mkdir -p "' .. EMPTY_DIR .. '"')
+    os.execute('mkdir -p "' .. MIXED_DIR .. '"')
+
+    TMPFILES[BENCH_FILES_DIR] = 'dir'
+    TMPFILES[EMPTY_DIR] = 'dir'
+    TMPFILES[MIXED_DIR] = 'dir'
 end
 
 function testcase.after_all()
-    -- Clean up test files
-    os.execute(
-        'rm -rf tmp/bench_files tmp/empty_dir tmp/mixed_dir tmp/single_test_bench.lua')
+    -- Clean up all test files and directories
+    cleanup_temp_files()
 end
 
 function testcase.after_each()
     -- Restore original print function
     uncapture_print()
 
-    -- Clean up temporary files
-    for filename, ftype in pairs(TMPFILES) do
-        if ftype == 'dir' then
-            os.execute('rm -rf ' .. filename)
-        else
-            os.remove(filename)
-        end
-    end
-    TMPFILES = {}
+    -- Clean up any additional temporary files created during test
+    -- (keep base directories for other tests)
 end
 
 function testcase.module_loading()
@@ -153,7 +190,8 @@ end
 
 function testcase.empty_directory()
     -- Test loading from an empty directory
-    local files = loadfiles('tmp/empty_dir')
+    local empty_dir = create_temp_dir()
+    local files = loadfiles(empty_dir)
     assert.is_table(files)
     assert.equal(#files, 0)
 end
@@ -171,11 +209,12 @@ end
 function testcase.bench_file_pattern()
     -- Test that only *_bench.lua files are loaded from directories
     -- Create test files with different patterns
+    local bench_dir = create_temp_dir()
     local test_files = {
-        'tmp/bench_files/good_bench.lua',
-        'tmp/bench_files/bad_bench.txt',
-        'tmp/bench_files/not_bench.lua',
-        'tmp/bench_files/bench.lua', -- doesn't end with _bench.lua
+        bench_dir .. '/good_bench.lua',
+        bench_dir .. '/bad_bench.txt',
+        bench_dir .. '/not_bench.lua',
+        bench_dir .. '/bench.lua', -- doesn't end with _bench.lua
     }
 
     for _, file in ipairs(test_files) do
@@ -196,7 +235,7 @@ end)
     end
 
     capture_print()
-    local files = loadfiles('tmp/bench_files')
+    local files = loadfiles(bench_dir)
 
     -- Count files that match our good_bench.lua pattern
     local good_bench_found = false

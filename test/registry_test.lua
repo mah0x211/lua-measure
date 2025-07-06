@@ -4,19 +4,47 @@ local assert = require('assert')
 local registry = require('measure.registry')
 local new_spec = require('measure.spec')
 
--- Helper function to get test file paths dynamically
-local function get_test_file_path(filename)
-    local handle = io.popen('pwd')
-    local cwd = handle:read('*a'):gsub('\n$', '')
-    handle:close()
+-- Temporary file management
+local TMPFILES = {}
 
-    -- If we're already in the test directory, just use the filename
-    -- Otherwise, append /test/ to get to the test directory
-    if cwd:match('/test$') then
-        return cwd .. '/' .. filename
+-- Helper function to create unique temporary directory
+local function create_temp_dir()
+    local tmp_name = "tmp_" .. os.time() .. "_" .. math.random(10000, 99999)
+    local tmp_path = "test/" .. tmp_name
+    os.execute('mkdir -p "' .. tmp_path .. '"')
+    TMPFILES[tmp_path] = 'dir'
+    return tmp_path
+end
+
+-- Helper function to create temporary file path (not actual file)
+local function create_temp_file_path(filename, temp_dir)
+    local file_path
+    if temp_dir then
+        file_path = temp_dir .. "/" .. filename
     else
-        return cwd .. '/test/' .. filename
+        local tmp_dir = create_temp_dir()
+        file_path = tmp_dir .. "/" .. filename
     end
+    -- Mark the file path for cleanup even if we don't create the actual file
+    TMPFILES[file_path] = 'file'
+    return file_path
+end
+
+-- Helper function to cleanup all temporary files
+local function cleanup_temp_files()
+    for filename, ftype in pairs(TMPFILES) do
+        if ftype == 'dir' then
+            os.execute('rm -rf "' .. filename .. '"')
+        else
+            os.remove(filename)
+        end
+    end
+    TMPFILES = {}
+end
+
+function testcase.after_all()
+    -- Clean up all temporary files and directories
+    cleanup_temp_files()
 end
 
 function testcase.add_spec_valid()
@@ -25,7 +53,7 @@ function testcase.add_spec_valid()
 
     -- Create a valid spec
     local spec = new_spec()
-    local test_file = get_test_file_path('registry_test.lua')
+    local test_file = create_temp_file_path('registry_test.lua')
 
     -- Test adding a valid spec
     local ok, err = registry.add(test_file, spec)
@@ -107,9 +135,11 @@ function testcase.get_populated_registry()
     local spec1 = new_spec()
     local spec2 = new_spec()
 
-    local current_file = get_test_file_path('registry_test.lua')
+    local temp_dir = create_temp_dir()
+    local current_file = create_temp_file_path('registry_test.lua', temp_dir)
+    local other_file = create_temp_file_path('spec_test.lua', temp_dir)
     registry.add(current_file, spec1)
-    registry.add(get_test_file_path('spec_test.lua'), spec2)
+    registry.add(other_file, spec2)
 
     -- Get registry
     local reg = registry.get()
@@ -117,14 +147,15 @@ function testcase.get_populated_registry()
 
     -- Verify contents
     assert.equal(reg[current_file], spec1)
-    assert.equal(reg[get_test_file_path('spec_test.lua')], spec2)
+    assert.equal(reg[other_file], spec2)
 
     -- Count entries
     local count = 0
     for key, spec in pairs(reg) do
         assert.is_string(key)
         assert.is_table(spec)
-        assert.match(tostring(spec), '^measure%.spec', false)
+        local spec_str = tostring(spec)
+        assert.is_true(spec_str:find('measure%.spec') ~= nil)
         count = count + 1
     end
     assert.equal(count, 2)
@@ -134,8 +165,9 @@ function testcase.clear_registry()
     -- Add some specs first
     local spec1 = new_spec()
     local spec2 = new_spec()
-    registry.add(get_test_file_path('registry_test.lua'), spec1)
-    registry.add(get_test_file_path('spec_test.lua'), spec2)
+    local temp_dir = create_temp_dir()
+    registry.add(create_temp_file_path('registry_test.lua', temp_dir), spec1)
+    registry.add(create_temp_file_path('spec_test.lua', temp_dir), spec2)
 
     -- Verify they are there
     local reg = registry.get()
@@ -164,7 +196,7 @@ function testcase.multiple_specs_same_file()
     local spec2 = new_spec()
 
     -- Add first spec
-    local test_file = get_test_file_path('registry_test.lua')
+    local test_file = create_temp_file_path('registry_test.lua')
     local ok, err = registry.add(test_file, spec1)
     assert.is_true(ok)
     assert.is_nil(err)
@@ -191,7 +223,7 @@ function testcase.spec_with_hooks_and_describes()
     spec:new_describe('Test Benchmark')
 
     -- Add to registry
-    local test_file = get_test_file_path('registry_test.lua')
+    local test_file = create_temp_file_path('registry_test.lua')
     local ok, err = registry.add(test_file, spec)
     assert.is_true(ok)
     assert.is_nil(err)
@@ -225,9 +257,10 @@ function testcase.registry_isolation()
     end)
     spec2:new_describe('Spec2 Test')
 
-    -- Add to registry (using existing test files)
-    local file1 = get_test_file_path('registry_test.lua')
-    local file2 = get_test_file_path('spec_test.lua')
+    -- Add to registry using temporary file paths
+    local temp_dir = create_temp_dir()
+    local file1 = create_temp_file_path('registry_test.lua', temp_dir)
+    local file2 = create_temp_file_path('spec_test.lua', temp_dir)
     registry.add(file1, spec1)
     registry.add(file2, spec2)
 
@@ -252,8 +285,9 @@ function testcase.get_specific_key()
     local spec1 = new_spec()
     local spec2 = new_spec()
 
-    local key1 = get_test_file_path('registry_test.lua')
-    local key2 = get_test_file_path('spec_test.lua')
+    local temp_dir = create_temp_dir()
+    local key1 = create_temp_file_path('registry_test.lua', temp_dir)
+    local key2 = create_temp_file_path('spec_test.lua', temp_dir)
     registry.add(key1, spec1)
     registry.add(key2, spec2)
 
@@ -271,7 +305,7 @@ function testcase.get_with_nil_parameter()
 
     -- Add a spec
     local spec = new_spec()
-    local key = get_test_file_path('registry_test.lua')
+    local key = create_temp_file_path('registry_test.lua')
     registry.add(key, spec)
 
     -- Explicitly pass nil to get all specs

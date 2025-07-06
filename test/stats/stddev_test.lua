@@ -2,36 +2,10 @@ local testcase = require('testcase')
 local assert = require('assert')
 local stddev = require('measure.stats.stddev')
 local samples = require('measure.samples')
+local mock_samples = require('./test/helpers/mock_samples')
 
--- Helper function to create mock samples with known time values
-local function create_mock_samples(time_values)
-    local count = #time_values
-    local data = {
-        time_ns = {},
-        before_kb = {},
-        after_kb = {},
-        allocated_kb = {},
-        capacity = count,
-        count = count,
-        gc_step = 0,
-        base_kb = 1,
-        cl = 95,
-        rciw = 5.0,
-    }
-
-    for i, time_ns in ipairs(time_values) do
-        data.time_ns[i] = time_ns
-        data.before_kb[i] = 0
-        data.after_kb[i] = 0
-        data.allocated_kb[i] = 0
-    end
-
-    local s, err = samples(data)
-    if not s then
-        error("Failed to create mock samples: " .. (err or "unknown error"))
-    end
-    return s
-end
+-- Import helper function
+local create_mock_samples = mock_samples.create_mock_samples
 
 -- Test standard deviation calculation with known data
 function testcase.known_data()
@@ -130,4 +104,95 @@ function testcase.error_handling()
     local result = stddev(empty_samples)
     -- Check for NaN (NaN is not equal to itself)
     assert.is_true(result ~= result)
+end
+
+-- Test additional error cases to improve coverage
+function testcase.variance_error_handling()
+    -- Try to trigger pcall error in variance module (line 588)
+    -- Test with invalid samples object that might cause variance to fail
+    assert.throws(function()
+        stddev("invalid_samples") -- String instead of samples object
+    end)
+
+    assert.throws(function()
+        stddev({}) -- Empty table instead of proper samples object
+    end)
+end
+
+function testcase.nan_variance_handling()
+    -- Try to create condition where variance returns NaN (line 593)
+    -- This is tricky because variance module is implemented in C
+    -- Test with edge case that might produce NaN variance
+
+    -- Create samples with very extreme values that might cause numerical issues
+    local extreme_data = {
+        time_ns = {
+            2147483647,
+            1,
+            2147483647,
+            1,
+        }, -- Extreme alternating values
+        before_kb = {
+            0,
+            0,
+            0,
+            0,
+        },
+        after_kb = {
+            0,
+            0,
+            0,
+            0,
+        },
+        allocated_kb = {
+            0,
+            0,
+            0,
+            0,
+        },
+        capacity = 4,
+        count = 4,
+        gc_step = 0,
+        base_kb = 1,
+        cl = 95,
+        rciw = 5.0,
+    }
+
+    local extreme_samples = samples(extreme_data)
+    local result = stddev(extreme_samples)
+    -- Should handle this gracefully
+    assert.is_number(result)
+end
+
+function testcase.additional_coverage_tests()
+    -- Additional tests to improve coverage
+
+    -- Test with very large variation
+    local large_var_samples = create_mock_samples({
+        1,
+        1000000000,
+        1,
+        1000000000,
+        1,
+    })
+    local result_large_var = stddev(large_var_samples)
+    assert.is_number(result_large_var)
+    assert.greater(result_large_var, 0)
+
+    -- Test with patterns that might stress the variance calculation
+    local pattern_samples = create_mock_samples({
+        100,
+        200,
+        300,
+        400,
+        500,
+        600,
+        700,
+        800,
+        900,
+        1000,
+    })
+    local result_pattern = stddev(pattern_samples)
+    assert.is_number(result_pattern)
+    assert.greater(result_pattern, 0)
 end
