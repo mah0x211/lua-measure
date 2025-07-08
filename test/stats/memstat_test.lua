@@ -31,13 +31,6 @@ function testcase.basic()
             300,
             360,
         },
-        allocated_kb = {
-            20,
-            30,
-            40,
-            50,
-            60,
-        },
     })
 
     local result = memstat(s)
@@ -76,20 +69,15 @@ function testcase.allocation_rate()
             150,
             150,
         },
-        allocated_kb = {
-            10,
-            20,
-            30,
-        },
     })
 
     local result = memstat(s)
 
-    -- Average allocation should be (10+20+30)/3 = 20
-    assert.equal(result.allocation_rate, 20.0)
+    -- Average allocation should be (50+50+50)/3 = 50
+    assert.equal(result.allocation_rate, 50.0)
 
-    -- Memory efficiency should be 1/20 = 0.05
-    assert.less(math.abs(result.memory_efficiency - 0.05), 0.001)
+    -- Memory efficiency should be 1 / allocation_rate
+    assert.equal(result.memory_efficiency, 0.02)
 end
 
 -- Test peak memory detection
@@ -112,12 +100,6 @@ function testcase.peak_detection()
             180,
             140,
         }, -- peak = 250
-        allocated_kb = {
-            20,
-            50,
-            30,
-            20,
-        },
     })
 
     local result = memstat(s)
@@ -148,12 +130,6 @@ function testcase.gc_impact()
             130,
             140,
         },
-        allocated_kb = {
-            10,
-            20,
-            30,
-            40,
-        }, -- increasing allocation
     })
 
     local result = memstat(s)
@@ -178,11 +154,6 @@ function testcase.zero_allocation()
             100,
             100,
             100,
-        },
-        allocated_kb = {
-            0,
-            0,
-            0,
         },
     })
 
@@ -216,11 +187,6 @@ function testcase.identical_patterns()
             150,
             150,
         },
-        allocated_kb = {
-            50,
-            50,
-            50,
-        }, -- identical allocations
     })
 
     local result = memstat(s)
@@ -244,7 +210,6 @@ function testcase.error_handling()
         time_ns = {},
         before_kb = {},
         after_kb = {},
-        allocated_kb = {},
         capacity = 0,
         count = 0,
         gc_step = 0,

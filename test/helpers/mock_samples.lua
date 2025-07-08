@@ -21,6 +21,42 @@ local function create_mock_samples(time_values, confidence_level, rciw, opts)
     rciw = rciw or DEFAULT_RCIW
 
     local count = #time_values
+    
+    -- Calculate statistical values
+    local sum = 0
+    local min_val = math.huge
+    local max_val = 0
+    
+    for _, time_ns in ipairs(time_values) do
+        local val = math.floor(time_ns) -- Ensure integer values
+        sum = sum + val
+        if val < min_val then
+            min_val = val
+        end
+        if val > max_val then
+            max_val = val
+        end
+    end
+    
+    -- Handle empty data case
+    if count == 0 then
+        min_val = 0
+        max_val = 0
+        sum = 0
+    end
+    
+    local mean = count > 0 and (sum / count) or 0
+    
+    -- Calculate M2 using Welford's method for variance calculation
+    local M2 = 0
+    if count > 1 then
+        for _, time_ns in ipairs(time_values) do
+            local val = math.floor(time_ns)
+            local delta = val - mean
+            M2 = M2 + (delta * delta)
+        end
+    end
+    
     local data = {
         time_ns = {},
         before_kb = {},
@@ -32,11 +68,16 @@ local function create_mock_samples(time_values, confidence_level, rciw, opts)
         base_kb = opts.base_kb or DEFAULT_BASE_KB,
         cl = confidence_level,
         rciw = rciw,
+        sum = math.floor(sum),
+        min = math.floor(min_val),
+        max = math.floor(max_val),
+        mean = mean,
+        M2 = M2,
     }
 
     -- Populate time values
     for i, time_ns in ipairs(time_values) do
-        data.time_ns[i] = time_ns
+        data.time_ns[i] = math.floor(time_ns) -- Ensure integer values
         data.before_kb[i] = opts.before_kb and opts.before_kb[i] or 0
         data.after_kb[i] = opts.after_kb and opts.after_kb[i] or 0
         data.allocated_kb[i] = opts.allocated_kb and opts.allocated_kb[i] or 0
