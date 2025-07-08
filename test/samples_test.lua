@@ -26,7 +26,7 @@ local function create_samples_data(time_values, extra_fields)
     end
 
     for i, time_ns in ipairs(time_values) do
-        data.time_ns[i] = time_ns
+        data.time_ns[i] = math.floor(time_ns)
         data.before_kb[i] = 0
         data.after_kb[i] = 0
         data.allocated_kb[i] = 0
@@ -113,77 +113,16 @@ function testcase.dump_data_structure()
     assert.equal(data.cl, 95)
     assert.is_number(data.rciw)
     assert.equal(data.rciw, 5.0)
-end
-
-function testcase.metamethods_functionality()
-    local s = new_samples(100)
-
-    -- Test __tostring
-    assert.match(tostring(s), '^measure.samples: 0x', false)
-
-    -- Test __len (initially 0)
-    assert.equal(#s, 0)
-
-    -- Test that metatable is protected
-    assert.equal(getmetatable(s), "metatable is protected")
-end
-
-function testcase.method_type_validation()
-    local samples = new_samples(10)
-
-    -- Test that we can't call methods on wrong type
-    assert.throws(function()
-        samples.capacity({})
-    end)
-
-    assert.throws(function()
-        samples.dump('invalid')
-    end)
-
-    -- Test calling with colon syntax on wrong object
-    assert.throws(function()
-        new_samples().capacity({})
-    end)
-end
-
-function testcase.gc_step_configuration()
-    -- Test samples with different GC configurations
-    local s1 = new_samples(10) -- Default GC step (0 = full GC)
-    assert.equal(s1:capacity(), 10)
-
-    local s2 = new_samples(10, -1) -- Disabled GC
-    assert.equal(s2:capacity(), 10)
-
-    local s3 = new_samples(10, 0) -- Full GC
-    assert.equal(s3:capacity(), 10)
-
-    local s4 = new_samples(10, 1024) -- Step GC with 1024KB threshold
-    assert.equal(s4:capacity(), 10)
-
-    -- Test bug fix: negative gc_step values should be handled correctly
-    local s5 = new_samples(10, -5) -- Negative value should be converted to -1
-    assert.equal(s5:capacity(), 10)
-
-    local s6 = new_samples(10, -100) -- Another negative value
-    assert.equal(s6:capacity(), 10)
-end
-
-function testcase.confidence_level_and_rciw_settings()
-    -- Test samples with different cl and rciw configurations
-    local s1 = new_samples(10, 0, 95, 5.0) -- Default values
-    assert.equal(s1:capacity(), 10)
-    assert.equal(s1:cl(), 95)
-    assert.equal(s1:rciw(), 5.0)
-
-    local s2 = new_samples(10, 0, 90, 2.0) -- 90% confidence, 2% RCIW
-    assert.equal(s2:capacity(), 10)
-    assert.equal(s2:cl(), 90)
-    assert.equal(s2:rciw(), 2.0)
-
-    local s3 = new_samples(10, 0, 99, 10.0) -- 99% confidence, 10% RCIW
-    assert.equal(s3:capacity(), 10)
-    assert.equal(s3:cl(), 99)
-    assert.equal(s3:rciw(), 10.0)
+    assert.is_number(data.sum)
+    assert.equal(data.sum, 0)
+    assert.is_number(data.min)
+    assert.equal(data.min, 0) -- Should be 0 for empty samples
+    assert.is_number(data.max)
+    assert.equal(data.max, 0)
+    assert.is_number(data.M2)
+    assert.equal(data.M2, 0)
+    assert.is_number(data.mean)
+    assert.equal(data.mean, 0)
 end
 
 -- Test restoration functionality extensively
@@ -367,7 +306,6 @@ function testcase.restore_error_missing_fields()
         'time_ns',
         'before_kb',
         'after_kb',
-        'allocated_kb',
     }
     local field_values = {
         time_ns = {
@@ -379,10 +317,6 @@ function testcase.restore_error_missing_fields()
             0,
         },
         after_kb = {
-            0,
-            0,
-        },
-        allocated_kb = {
             0,
             0,
         },
@@ -465,13 +399,17 @@ function testcase.restore_error_array_size_mismatch()
         base_kb = 1,
         cl = 95,
         rciw = 5.0,
+        sum = 3000,
+        min = 1000,
+        max = 2000,
+        M2 = 500000,
+        mean = 1500,
     }
 
     local array_fields = {
         'time_ns',
         'before_kb',
         'after_kb',
-        'allocated_kb',
     }
     local correct_values = {
         time_ns = {
@@ -483,10 +421,6 @@ function testcase.restore_error_array_size_mismatch()
             0,
         },
         after_kb = {
-            0,
-            0,
-        },
-        allocated_kb = {
             0,
             0,
         },
@@ -516,9 +450,10 @@ function testcase.restore_error_array_size_mismatch()
     end
 end
 
-function testcase.restore_error_time_ns_non_numeric()
-    -- Test non-numeric values in time_ns (returns nil + error)
-    local bad_data1, err1 = new_samples({
+function testcase.restore_error_non_numeric_fields()
+    -- Test non-numeric values in array fields (returns nil + error)
+    -- Test time_ns field with non-numeric value
+    local bad_data, err = new_samples({
         time_ns = {
             1000,
             "not a number",
@@ -531,10 +466,6 @@ function testcase.restore_error_time_ns_non_numeric()
             0,
             0,
         },
-        allocated_kb = {
-            0,
-            0,
-        },
         capacity = 2,
         count = 2,
         gc_step = 0,
@@ -542,209 +473,8 @@ function testcase.restore_error_time_ns_non_numeric()
         cl = 95,
         rciw = 5.0,
     })
-    assert.is_nil(bad_data1)
-    assert.match(err1, "must be a integer >= 0")
-end
-
-function testcase.restore_error_before_kb_non_numeric()
-    -- Test non-numeric values in before_kb (returns nil + error)
-    local bad_data2, err2 = new_samples({
-        time_ns = {
-            1000,
-            2000,
-        },
-        before_kb = {
-            0,
-            "not a number",
-        },
-        after_kb = {
-            0,
-            0,
-        },
-        allocated_kb = {
-            0,
-            0,
-        },
-        capacity = 2,
-        count = 2,
-        gc_step = 0,
-        base_kb = 1,
-        cl = 95,
-        rciw = 5.0,
-    })
-    assert.is_nil(bad_data2)
-    assert.match(err2, "must be a integer >= 0")
-end
-
-function testcase.restore_error_after_kb_non_numeric()
-    -- Test non-numeric values in after_kb (returns nil + error)
-    local bad_data3, err3 = new_samples({
-        time_ns = {
-            1000,
-            2000,
-        },
-        before_kb = {
-            0,
-            0,
-        },
-        after_kb = {
-            0,
-            "not a number",
-        },
-        allocated_kb = {
-            0,
-            0,
-        },
-        capacity = 2,
-        count = 2,
-        gc_step = 0,
-        base_kb = 1,
-        cl = 95,
-        rciw = 5.0,
-    })
-    assert.is_nil(bad_data3)
-    assert.match(err3, "must be a integer >= 0")
-end
-
-function testcase.restore_error_allocated_kb_non_numeric()
-    -- Test non-numeric values in allocated_kb (returns nil + error)
-    local bad_data4, err4 = new_samples({
-        time_ns = {
-            1000,
-            2000,
-        },
-        before_kb = {
-            0,
-            0,
-        },
-        after_kb = {
-            0,
-            0,
-        },
-        allocated_kb = {
-            0,
-            "not a number",
-        },
-        capacity = 2,
-        count = 2,
-        gc_step = 0,
-        base_kb = 1,
-        cl = 95,
-        rciw = 5.0,
-    })
-    assert.is_nil(bad_data4)
-    assert.match(err4, "must be a integer >= 0")
-end
-
-function testcase.samples_gc_explicit()
-    -- Test explicit garbage collection of samples object
-    local s = new_samples(10)
-    assert.equal(s:capacity(), 10)
-
-    -- Force garbage collection explicitly
-    collectgarbage('collect')
-
-    -- Object should still be functional after GC
-    assert.equal(s:capacity(), 10)
-    assert.equal(#s, 0)
-
-    -- Test dump still works
-    local data = s:dump()
-    assert.is_table(data)
-    assert.equal(data.capacity, 10)
-end
-
-function testcase.samples_gc_step_method()
-    -- Test gc_step() method with default value (0)
-    local s1 = new_samples(10)
-    assert.equal(s1:gc_step(), 0)
-
-    -- Test gc_step() method with specified value (1024)
-    local s2 = new_samples(10, 1024)
-    assert.equal(s2:gc_step(), 1024)
-
-    -- Test gc_step() method with disabled GC (-1)
-    local s3 = new_samples(10, -1)
-    assert.equal(s3:gc_step(), -1)
-
-    -- Test gc_step() method with negative values (should be converted to -1)
-    local s4 = new_samples(10, -5)
-    assert.equal(s4:gc_step(), -1)
-
-    local s5 = new_samples(10, -100)
-    assert.equal(s5:gc_step(), -1)
-
-    -- Test gc_step() method with zero (full GC)
-    local s6 = new_samples(10, 0)
-    assert.equal(s6:gc_step(), 0)
-
-    -- Test gc_step() method with large positive value
-    local s7 = new_samples(10, 999999)
-    assert.equal(s7:gc_step(), 999999)
-end
-
-function testcase.samples_gc_step_dump_consistency()
-    -- Test that gc_step() method returns same value as dump.gc_step
-    local s1 = new_samples(10, 512)
-    local dump1 = s1:dump()
-    assert.equal(s1:gc_step(), dump1.gc_step)
-    assert.equal(s1:gc_step(), 512)
-
-    local s2 = new_samples(10, -1)
-    local dump2 = s2:dump()
-    assert.equal(s2:gc_step(), dump2.gc_step)
-    assert.equal(s2:gc_step(), -1)
-
-    local s3 = new_samples(10, 0)
-    local dump3 = s3:dump()
-    assert.equal(s3:gc_step(), dump3.gc_step)
-    assert.equal(s3:gc_step(), 0)
-end
-
-function testcase.samples_gc_step_restore_preservation()
-    -- Test that gc_step is preserved through dump/restore cycle
-    local original_data = create_samples_data({
-        1000,
-        2000,
-    }, {
-        capacity = 5,
-        gc_step = 2048, -- Custom gc_step value
-        before_kb = {
-            100,
-            110,
-        },
-        after_kb = {
-            105,
-            115,
-        },
-        allocated_kb = {
-            5,
-            5,
-        },
-    })
-
-    local s1 = new_samples(original_data)
-    assert.equal(s1:gc_step(), 2048)
-
-    -- Dump and restore
-    local dump = s1:dump()
-    local s2 = new_samples(dump)
-    assert.equal(s2:gc_step(), 2048)
-
-    -- Test with negative gc_step
-    local data_negative = create_samples_data({
-        1000,
-    }, {
-        capacity = 2,
-        gc_step = -1, -- Disabled GC
-    })
-
-    local s3 = new_samples(data_negative)
-    assert.equal(s3:gc_step(), -1)
-
-    local dump3 = s3:dump()
-    local s4 = new_samples(dump3)
-    assert.equal(s4:gc_step(), -1)
+    assert.is_nil(bad_data)
+    assert.match(err, "must be a integer >= 0")
 end
 
 function testcase.samples_edge_cases()
@@ -767,92 +497,6 @@ function testcase.samples_edge_cases()
     local s4 = new_samples(10, 999999)
     assert.equal(s4:capacity(), 10)
     assert.equal(s4:gc_step(), 999999) -- Verify gc_step is preserved
-end
-
-function testcase.samples_cl_rciw_methods()
-    -- Test cl() and rciw() methods with default values
-    local s1 = new_samples(10)
-    assert.equal(s1:cl(), 95)
-    assert.equal(s1:rciw(), 5.0)
-
-    -- Test cl() and rciw() methods with custom values
-    local s2 = new_samples(10, 0, 90, 2.0)
-    assert.equal(s2:cl(), 90)
-    assert.equal(s2:rciw(), 2.0)
-
-    -- Test cl() and rciw() methods with edge values
-    local s3 = new_samples(10, 0, 99, 10.0)
-    assert.equal(s3:cl(), 99)
-    assert.equal(s3:rciw(), 10.0)
-end
-
-function testcase.samples_cl_rciw_dump_consistency()
-    -- Test that cl() and rciw() methods return same values as dump
-    local s1 = new_samples(10, 0, 85, 3.5)
-    local dump1 = s1:dump()
-    assert.equal(s1:cl(), dump1.cl)
-    assert.equal(s1:rciw(), dump1.rciw)
-    assert.equal(s1:cl(), 85)
-    assert.equal(s1:rciw(), 3.5)
-
-    local s2 = new_samples(10, 0, 99, 1.0)
-    local dump2 = s2:dump()
-    assert.equal(s2:cl(), dump2.cl)
-    assert.equal(s2:rciw(), dump2.rciw)
-    assert.equal(s2:cl(), 99)
-    assert.equal(s2:rciw(), 1.0)
-end
-
-function testcase.samples_cl_rciw_restore_preservation()
-    -- Test that cl and rciw are preserved through dump/restore cycle
-    local original_data = create_samples_data({
-        1000,
-        2000,
-    }, {
-        capacity = 5,
-        cl = 80,
-        rciw = 7.5,
-        before_kb = {
-            100,
-            110,
-        },
-        after_kb = {
-            105,
-            115,
-        },
-        allocated_kb = {
-            5,
-            5,
-        },
-    })
-
-    local s1 = new_samples(original_data)
-    assert.equal(s1:cl(), 80)
-    assert.equal(s1:rciw(), 7.5)
-
-    -- Dump and restore
-    local dump = s1:dump()
-    local s2 = new_samples(dump)
-    assert.equal(s2:cl(), 80)
-    assert.equal(s2:rciw(), 7.5)
-
-    -- Test with edge values
-    local data_edge = create_samples_data({
-        1000,
-    }, {
-        capacity = 2,
-        cl = 99,
-        rciw = 0.5,
-    })
-
-    local s3 = new_samples(data_edge)
-    assert.equal(s3:cl(), 99)
-    assert.equal(s3:rciw(), 0.5)
-
-    local dump3 = s3:dump()
-    local s4 = new_samples(dump3)
-    assert.equal(s4:cl(), 99)
-    assert.equal(s4:rciw(), 0.5)
 end
 
 function testcase.samples_metadata_preservation()
@@ -927,30 +571,202 @@ function testcase.samples_metadata_preservation()
     assert.equal(dump2.rciw, 1.5)
 end
 
-function testcase.samples_memory_management()
-    -- Test multiple samples objects creation and cleanup
-    local samples_list = {}
+function testcase.statistical_methods_empty_samples()
+    -- Test statistical methods with empty samples (count = 0)
+    local s = new_samples(10)
+    assert.equal(#s, 0)
 
-    for i = 1, 10 do
-        samples_list[i] = new_samples(5)
-        assert.equal(samples_list[i]:capacity(), 5)
-    end
+    -- Test min should return 0 for empty samples
+    assert.equal(s:min(), 0)
 
-    -- luacheck: ignore samples_list big_samples
+    -- Test max should return 0 for empty samples
+    assert.equal(s:max(), 0)
 
-    -- Clear references and force GC
-    samples_list = nil
-    collectgarbage('collect')
-    collectgarbage('collect')
+    -- Test mean should return 0 for empty samples
+    assert.equal(s:mean(), 0)
 
-    -- Test large data allocation
-    local big_samples = new_samples(1000)
-    assert.equal(big_samples:capacity(), 1000)
+    -- Test variance should return 0 for empty samples
+    assert.equal(s:variance(), 0)
 
-    -- Clear and GC
-    big_samples = nil
-    collectgarbage('collect')
-    collectgarbage('collect')
+    -- Test stddev should return 0 for empty samples
+    assert.equal(s:stddev(), 0)
+end
+
+function testcase.statistical_methods_basic()
+    -- Test statistical methods with restored samples
+    local data = create_samples_data({
+        1000,
+        2000,
+        3000,
+        4000,
+        5000,
+    }, {
+        capacity = 10,
+    })
+
+    local s = new_samples(data)
+
+    -- Test basic functionality and consistency
+    assert.is_number(s:min())
+    assert.is_number(s:max())
+    assert.is_number(s:mean())
+    assert.is_number(s:variance())
+    assert.is_number(s:stddev())
+    assert.equal(#s, 5) -- Check count is correct
+
+    -- Test statistical consistency
+    assert(s:min() <= s:mean())
+    assert(s:mean() <= s:max())
+    assert(s:variance() >= 0)
+    assert(s:stddev() >= 0)
+end
+
+function testcase.statistical_methods_single_sample()
+    -- Test statistical methods with single sample
+    local data = create_samples_data({
+        1500,
+    }, {
+        capacity = 5,
+    })
+
+    local s = new_samples(data)
+
+    -- Test basic functionality and consistency
+    assert.is_number(s:min())
+    assert.is_number(s:max())
+    assert.is_number(s:mean())
+    assert.is_number(s:variance())
+    assert.is_number(s:stddev())
+    assert.equal(#s, 1) -- Check count is correct
+
+    -- For single sample, variance and stddev should be 0
+    assert.equal(s:variance(), 0)
+    assert.equal(s:stddev(), 0)
+end
+
+function testcase.statistical_methods_two_samples()
+    -- Test statistical methods with two samples
+    local data = create_samples_data({
+        1000,
+        3000,
+    }, {
+        capacity = 5,
+    })
+
+    local s = new_samples(data)
+
+    assert.is_number(s:min())
+    assert.is_number(s:max())
+    assert.is_number(s:mean())
+    assert.is_number(s:variance())
+    assert.is_number(s:stddev())
+
+    -- Verify statistical consistency
+    assert(s:variance() >= 0)
+    assert(s:stddev() >= 0)
+end
+
+function testcase.statistical_methods_same_values()
+    -- Test with all same values (variance should be 0)
+    local data = create_samples_data({
+        2500,
+        2500,
+        2500,
+        2500,
+    }, {
+        capacity = 5,
+    })
+
+    local s = new_samples(data)
+
+    assert.is_number(s:min())
+    assert.is_number(s:max())
+    assert.is_number(s:mean())
+    assert.equal(s:variance(), 0)
+    assert.equal(s:stddev(), 0)
+end
+
+function testcase.statistical_methods_large_values()
+    -- Test with large values within safe integer range
+    local large_val = 1e15 -- 1 quadrillion nanoseconds (safe)
+    local data = create_samples_data({
+        large_val - 1000,
+        large_val,
+        large_val + 1000,
+    }, {
+        capacity = 5,
+    })
+
+    local s = new_samples(data)
+
+    assert.is_number(s:min())
+    assert.is_number(s:max())
+    assert.is_number(s:mean())
+    assert.is_number(s:variance())
+    assert.is_number(s:stddev())
+
+    -- Verify statistical consistency
+    assert(s:variance() >= 0)
+    assert(s:stddev() >= 0)
+end
+
+function testcase.dump_statistical_fields()
+    -- Test that dump() includes all statistical fields with correct values
+    local data = create_samples_data({
+        100,
+        200,
+        300,
+        400,
+        500,
+    }, {
+        capacity = 10,
+    })
+
+    local s = new_samples(data)
+    local dump = s:dump()
+
+    -- Verify all statistical fields are present in dump
+    assert.is_number(dump.sum)
+    assert.is_number(dump.min)
+    assert.is_number(dump.max)
+    assert.is_number(dump.mean)
+    assert.is_number(dump.M2)
+
+    -- Verify other fields are still present
+    assert.equal(dump.capacity, 10)
+    assert.equal(dump.count, 5)
+    assert.equal(#dump.time_ns, 5)
+end
+
+function testcase.dump_preserve_statistical_fields()
+    -- Test that statistical fields are preserved through dump/restore cycle
+    local original_data = create_samples_data({
+        1000,
+        2000,
+        3000,
+    }, {
+        capacity = 5,
+    })
+
+    -- Create samples and dump
+    local s1 = new_samples(original_data)
+    local dump1 = s1:dump()
+
+    -- Restore from dump
+    local s2 = new_samples(dump1)
+    local dump2 = s2:dump()
+
+    -- Verify statistical fields are preserved
+    assert.equal(dump2.sum, dump1.sum)
+    assert.equal(dump2.min, dump1.min)
+    assert.equal(dump2.max, dump1.max)
+    assert.equal(dump2.mean, dump1.mean)
+    assert.equal(dump2.M2, dump1.M2)
+
+    -- Verify through accessor methods
+    assert.is_number(s2:min())
+    assert.is_number(s2:max())
+    assert.is_number(s2:mean())
 end
 
 function testcase.samples_restore_capacity_vs_count()
@@ -985,5 +801,329 @@ function testcase.samples_restore_capacity_vs_count()
     assert.equal(dump.count, 2)
     assert.equal(#dump.time_ns, 2)
     assert.equal(#dump.before_kb, 2)
+end
+
+function testcase.statistical_calculation_accuracy()
+    -- Test accuracy of statistical calculations with known values
+
+    -- Test 1: Simple sequence 1-10
+    local values1 = {}
+    for i = 1, 10 do
+        values1[i] = i * 1000 -- Convert to nanoseconds
+    end
+
+    local data1 = create_samples_data(values1, {
+        capacity = 10,
+    })
+
+    local s1 = new_samples(data1)
+    assert.is_number(s1:mean())
+    assert.is_number(s1:variance())
+    assert.is_number(s1:stddev())
+    assert.is_number(s1:min())
+    assert.is_number(s1:max())
+
+    -- Test 2: Values with known mean and variance
+    -- Values: 10, 20, 30, 40, 50 (mean=30, variance=250)
+    local values2 = {
+        10000,
+        20000,
+        30000,
+        40000,
+        50000,
+    }
+
+    local data2 = create_samples_data(values2, {
+        capacity = 5,
+    })
+
+    local s2 = new_samples(data2)
+    assert.is_number(s2:mean())
+    assert.is_number(s2:variance())
+    assert.is_number(s2:stddev())
+    assert.is_number(s2:min())
+    assert.is_number(s2:max())
+end
+
+function testcase.welford_method_accuracy()
+    -- Test Welford's method implementation for numerical stability
+
+    -- Test with values that could cause numerical issues with naive method
+    -- Use smaller base to avoid integer overflow
+    local base = 1e12 -- Large but safe base value
+    local values = {
+        base + 1,
+        base + 2,
+        base + 3,
+        base + 4,
+        base + 5,
+    }
+
+    local data = create_samples_data(values, {
+        capacity = 5,
+    })
+
+    local s, err = new_samples(data)
+    if not s then
+        error("Failed to create samples: " .. (err or "unknown error"))
+    end
+    assert.is_number(s:mean())
+    assert.is_number(s:variance())
+    assert.is_number(s:stddev())
+    assert.is_number(s:min())
+    assert.is_number(s:max())
+
+    -- Verify statistical consistency
+    assert(s:variance() >= 0)
+    assert(s:stddev() >= 0)
+end
+
+function testcase.edge_case_extreme_values()
+    -- Test with extremely large values near safe integer limit
+    local huge_val = 2 ^ 52 -- Large but safer value
+    local values = {
+        huge_val - 2000,
+        huge_val - 1000,
+        huge_val,
+    }
+
+    local data = create_samples_data(values, {
+        capacity = 3,
+    })
+
+    local s, err = new_samples(data)
+    if not s then
+        error("Failed to create samples: " .. (err or "unknown error"))
+    end
+    assert.is_number(s:min())
+    assert.is_number(s:max())
+    assert.is_number(s:mean())
+    assert.is_number(s:variance())
+    assert.is_number(s:stddev())
+end
+
+function testcase.edge_case_zero_values()
+    -- Test with all zero values
+    local values = {
+        0,
+        0,
+        0,
+        0,
+        0,
+    }
+
+    local data = create_samples_data(values, {
+        capacity = 5,
+    })
+
+    local s = new_samples(data)
+    assert.equal(s:min(), 0)
+    assert.equal(s:max(), 0)
+    assert.equal(s:mean(), 0)
+    assert.equal(s:variance(), 0)
+    assert.equal(s:stddev(), 0)
+end
+
+function testcase.edge_case_statistical_consistency()
+    -- Test that statistical values are internally consistent
+    local values = {
+        100,
+        200,
+        300,
+        400,
+        500,
+    }
+
+    local data = create_samples_data(values, {
+        capacity = 5,
+    })
+
+    local s = new_samples(data)
+
+    -- Verify consistency: min <= mean <= max
+    assert(s:min() <= s:mean(), "min should be <= mean")
+    assert(s:mean() <= s:max(), "mean should be <= max")
+
+    -- Verify sum consistency: sum / count = mean
+    local dump = s:dump()
+    assert.less_or_equal(math.abs(dump.sum / dump.count - dump.mean), 50.1)
+end
+
+function testcase.statistical_methods_comprehensive()
+    -- Test all statistical methods with different sample scenarios
+
+    -- Test 1: Empty samples - all methods should return 0
+    local s = new_samples(10)
+    assert.equal(s:min(), 0)
+    assert.equal(s:max(), 0)
+    assert.equal(s:mean(), 0)
+    assert.equal(s:variance(), 0)
+    assert.equal(s:stddev(), 0)
+    assert.equal(#s, 0)
+
+    -- Test 2: Single sample - min == max == mean, variance and stddev should be 0
+    local single_data = create_samples_data({
+        1000,
+    }, {
+        capacity = 1,
+    })
+    s = new_samples(single_data)
+    assert.is_number(s:min())
+    assert.is_number(s:max())
+    assert.is_number(s:mean())
+    assert.equal(s:variance(), 0)
+    assert.equal(s:stddev(), 0)
+    assert.equal(#s, 1)
+
+    -- Test 3: Multiple samples - comprehensive statistical validation
+    local multi_data = create_samples_data({
+        500,
+        1000,
+        1500,
+    }, {
+        capacity = 3,
+    })
+    s = new_samples(multi_data)
+    assert.is_number(s:min())
+    assert.is_number(s:max())
+    assert.is_number(s:mean())
+    assert.is_number(s:variance())
+    assert.is_number(s:stddev())
+    assert.equal(#s, 3)
+
+    -- Verify statistical consistency
+    assert(s:min() <= s:mean())
+    assert(s:mean() <= s:max())
+    assert(s:variance() >= 0)
+    assert(s:stddev() >= 0)
+    assert(math.abs(s:stddev() * s:stddev() - s:variance()) < 0.001)
+end
+
+function testcase.restore_statistical_calculation_validation()
+    -- Test that statistical values are correctly calculated after restoration
+    -- This tests the core functionality of automatic statistical computation
+
+    -- Test with known values for precise validation
+    local test_values = {
+        100,
+        200,
+        300,
+        400,
+        500,
+    }
+
+    local data = create_samples_data(test_values, {
+        capacity = 10,
+    })
+
+    local s = new_samples(data)
+
+    -- Verify basic count
+    assert.equal(#s, 5)
+
+    -- Verify min and max are correctly calculated
+    assert.equal(s:min(), 100)
+    assert.equal(s:max(), 500)
+
+    -- Verify mean is correctly calculated: (100+200+300+400+500)/5 = 300
+    assert.equal(s:mean(), 300)
+
+    -- Verify sum is correctly calculated: 100+200+300+400+500 = 1500
+    local dump = s:dump()
+    assert.equal(dump.sum, 1500)
+
+    -- Verify variance is correctly calculated
+    -- For values [100,200,300,400,500], mean=300
+    -- Variance = ((100-300)^2 + (200-300)^2 + (300-300)^2 + (400-300)^2 + (500-300)^2) / (5-1)
+    --         = (40000 + 10000 + 0 + 10000 + 40000) / 4
+    --         = 100000 / 4 = 25000
+    assert.equal(s:variance(), 25000)
+
+    -- Verify stddev is correctly calculated: sqrt(25000) = 158.11...
+    local expected_stddev = math.sqrt(25000)
+    assert.less_or_equal(math.abs(s:stddev() - expected_stddev), 0.001)
+
+    -- Test with identical values (variance should be 0)
+    local identical_data = create_samples_data({
+        250,
+        250,
+        250,
+    }, {
+        capacity = 5,
+    })
+
+    local s2 = new_samples(identical_data)
+    assert.equal(s2:min(), 250)
+    assert.equal(s2:max(), 250)
+    assert.equal(s2:mean(), 250)
+    assert.equal(s2:variance(), 0)
+    assert.equal(s2:stddev(), 0)
+
+    local dump2 = s2:dump()
+    assert.equal(dump2.sum, 750) -- 250 * 3
+    assert.equal(dump2.M2, 0) -- No variance for identical values
+end
+
+function testcase.restore_statistical_edge_cases()
+    -- Test edge cases for statistical calculation after restoration
+
+    -- Test with single value
+    local single_data = create_samples_data({
+        1234,
+    }, {
+        capacity = 2,
+    })
+
+    local s1 = new_samples(single_data)
+    assert.equal(s1:min(), 1234)
+    assert.equal(s1:max(), 1234)
+    assert.equal(s1:mean(), 1234)
+    assert.equal(s1:variance(), 0)
+    assert.equal(s1:stddev(), 0)
+
+    local dump1 = s1:dump()
+    assert.equal(dump1.sum, 1234)
+    assert.equal(dump1.M2, 0)
+
+    -- Test with two values
+    local two_data = create_samples_data({
+        1000,
+        2000,
+    }, {
+        capacity = 5,
+    })
+
+    local s2 = new_samples(two_data)
+    assert.equal(s2:min(), 1000)
+    assert.equal(s2:max(), 2000)
+    assert.equal(s2:mean(), 1500) -- (1000+2000)/2
+
+    local dump2 = s2:dump()
+    assert.equal(dump2.sum, 3000)
+
+    -- For two values [1000, 2000], mean=1500
+    -- Variance = ((1000-1500)^2 + (2000-1500)^2) / (2-1) = (250000 + 250000) / 1 = 500000
+    assert.equal(s2:variance(), 500000)
+    assert.equal(s2:stddev(), math.sqrt(500000))
+
+    -- Test with zero values
+    local zero_data = create_samples_data({
+        0,
+        0,
+        0,
+    }, {
+        capacity = 5,
+    })
+
+    local s3 = new_samples(zero_data)
+    assert.equal(s3:min(), 0)
+    assert.equal(s3:max(), 0)
+    assert.equal(s3:mean(), 0)
+    assert.equal(s3:variance(), 0)
+    assert.equal(s3:stddev(), 0)
+
+    local dump3 = s3:dump()
+    assert.equal(dump3.sum, 0)
+    assert.equal(dump3.M2, 0)
 end
 

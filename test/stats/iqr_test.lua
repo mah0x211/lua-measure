@@ -76,9 +76,6 @@ function testcase.nan_conditions()
         after_kb = {
             0,
         },
-        allocated_kb = {
-            0,
-        },
         capacity = 1,
         count = 1,
         gc_step = 0,
@@ -102,7 +99,6 @@ function testcase.nan_conditions()
         time_ns = {},
         before_kb = {},
         after_kb = {},
-        allocated_kb = {},
         capacity = 0,
         count = 0,
         gc_step = 0,
