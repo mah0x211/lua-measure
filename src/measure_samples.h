@@ -24,6 +24,8 @@
 #define measure_samples_h
 
 #include <errno.h>
+#include <float.h>
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 // measure headers
@@ -42,30 +44,22 @@ typedef struct {
 } measure_samples_data_t;
 
 typedef struct {
+    int saved_gc_pause;   // Saved GC pause value
+    int saved_gc_stepmul; // Saved GC step multiplier value
     size_t capacity;      // capacity of the samples array
     size_t count;         // number of samples collected
     size_t base_kb;       // Memory usage at start (after initial GC)
-    int saved_gc_pause;   // Saved GC pause value
-    int saved_gc_stepmul; // Saved GC step multiplier value
     double cl;            // confidence  level (e.g., 95.0%)
     double rciw;          // relative confidence interval width (e.g., 5.0%)
+    uint64_t sum;         // sum of all sample times in nanoseconds
+    uint64_t min;         // minimum sample time in nanoseconds
+    uint64_t max;         // maximum sample time in nanoseconds
+    double M2;            // sum of squares about the mean (Welford's method)
+    double mean;          // mean of the samples
     int gc_step;          // GC step size in KB (0 for full GC)
     int ref_data;         // reference to Lua data array
     measure_samples_data_t *data; // array of samples in nanoseconds
 } measure_samples_t;
-
-/**
- * @brief Reset the measure_samples_t object.
- * This function resets the count of samples to 0 and clears the data array
- * by setting all elements to 0.
- *
- * @param s Pointer to the measure_samples_t object
- */
-static inline void measure_samples_reset(measure_samples_t *s)
-{
-    s->count = 0;
-    memset(s->data, 0, sizeof(measure_samples_data_t) * s->capacity);
-}
 
 /**
  * @brief Initialize the measure_samples_t object.
@@ -76,8 +70,14 @@ static inline void measure_samples_reset(measure_samples_t *s)
 static inline void measure_samples_preprocess(measure_samples_t *s,
                                               lua_State *L)
 {
-    // Always reset count and clear data
-    measure_samples_reset(s);
+    // Always reset the samples object
+    s->count = 0;
+    s->sum   = 0;
+    s->min   = UINT64_MAX; // ensure any sample will be less
+    s->max   = 0;
+    s->M2    = 0.0;
+    s->mean  = 0.0;
+    memset(s->data, 0, sizeof(measure_samples_data_t) * s->capacity);
 
     // Save GC state
     s->saved_gc_pause = lua_gc(L, LUA_GCSETPAUSE, 0);
@@ -153,6 +153,71 @@ static inline int measure_samples_init_sample(measure_samples_t *s,
 }
 
 /**
+ * @brief Update the sample data in the measure_samples_t object.
+ * This function updates the sample data with the elapsed time, memory usage
+ * before and after the operation, and calculates the allocated memory during
+ * operation. It also updates the sum, min, max, and mean values of the samples.
+ *
+ * If the count exceeds the capacity, it sets errno to ENOSPC and returns -1.
+ * This function uses Welford's method to update the mean incrementally for
+ * numerical stability.
+ *
+ * This function is designed to be called after a sample has been initialized
+ * and the elapsed time has been calculated.
+ *
+ * @param s Pointer to the measure_samples_t object
+ * @param elapsed Elapsed time in nanoseconds for the sample
+ * @param before_kb Memory usage before the operation in KB
+ * @param after_kb Memory usage after the operation in KB
+ * @return int 0 on success, -1 on error (if no space left)
+ */
+static inline int measure_samples_update_sample_ex(measure_samples_t *s,
+                                                   uint64_t elapsed,
+                                                   size_t before_kb,
+                                                   size_t after_kb)
+{
+    if (s->count >= s->capacity) {
+        // no space left to add a new sample
+        errno = ENOSPC;
+        return -1;
+    }
+
+    measure_samples_data_t *data = &s->data[s->count];
+    data->time_ns                = elapsed;
+    data->before_kb              = before_kb;
+    data->after_kb               = after_kb;
+    // Calculate allocated KB
+    if (data->after_kb > data->before_kb) {
+        data->allocated_kb = data->after_kb - data->before_kb;
+    }
+    // Update sum, min, max, and mean
+    s->sum += elapsed;
+    if (elapsed < s->min) {
+        s->min = elapsed;
+    }
+    if (elapsed > s->max) {
+        s->max = elapsed;
+    }
+
+    // Increment sample count first
+    s->count++;
+
+    // Recalculate mean using Welford's method
+    if (s->count < 2) {
+        s->mean = (double)elapsed; // first sample sets the mean
+        s->M2   = 0.0;             // reset M2 for first sample
+    } else {
+        // Update mean incrementally
+        double delta = (double)elapsed - s->mean;
+        s->mean += delta / (double)s->count;
+        // Update M2 using Welford's method
+        s->M2 += delta * ((double)elapsed - s->mean);
+    }
+
+    return 0;
+}
+
+/**
  * @brief Update the current sample in the measure_samples_t object.
  * This function calculates the elapsed time since the sample was initialized,
  * updates the memory usage after the operation, and applies step GC if needed.
@@ -171,22 +236,17 @@ static inline int measure_samples_update_sample(measure_samples_t *s,
         return -1;
     }
 
+    // measure_samples_update_data
     measure_samples_data_t *data = &s->data[s->count];
     // calculate the elapsed time
-    data->time_ns                = measure_getnsec() - data->time_ns;
-    data->after_kb               = (size_t)lua_gc(L, LUA_GCCOUNT, 0);
-    // Calculate allocated KB
-    if (data->after_kb > data->before_kb) {
-        data->allocated_kb = data->after_kb - data->before_kb;
-    }
+    uint64_t elapsed             = measure_getnsec() - data->time_ns;
+    size_t after_kb              = (size_t)lua_gc(L, LUA_GCCOUNT, 0);
+    measure_samples_update_sample_ex(s, elapsed, data->before_kb, after_kb);
 
     // Apply step GC if needed
     if (s->gc_step > 0 && data->allocated_kb >= (size_t)s->gc_step) {
         lua_gc(L, LUA_GCSTEP, s->gc_step);
     }
-
-    // Increment sample count
-    s->count++;
 
     return 0;
 }
