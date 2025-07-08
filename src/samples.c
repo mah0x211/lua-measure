@@ -88,6 +88,28 @@ static int dump_lua(lua_State *L)
     return 1;
 }
 
+static int stddev_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    if (s->count < 2) {
+        lua_pushnumber(L, 0.0);
+    } else {
+        lua_pushnumber(L, sqrt(s->M2 / (s->count - 1)));
+    }
+    return 1;
+}
+
+static int variance_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    if (s->count < 2) {
+        lua_pushnumber(L, 0.0);
+    } else {
+        lua_pushnumber(L, s->M2 / (s->count - 1));
+    }
+    return 1;
+}
+
 static int mean_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
@@ -396,6 +418,8 @@ LUALIB_API int luaopen_measure_samples(lua_State *L)
             {"min",      min_lua     },
             {"max",      max_lua     },
             {"mean",     mean_lua    },
+            {"variance", variance_lua},
+            {"stddev",   stddev_lua  },
             {"dump",     dump_lua    },
             {NULL,       NULL        }
         };
