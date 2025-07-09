@@ -74,7 +74,6 @@ function testcase.error_handling()
         time_ns = {},
         before_kb = {},
         after_kb = {},
-        allocated_kb = {},
         capacity = 0,
         count = 0,
         gc_step = 0,
