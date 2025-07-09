@@ -67,16 +67,67 @@ static int dump_lua(lua_State *L)
     lua_pushnumber(L, s->rciw);
     lua_setfield(L, 2, "rciw");
 
+    lua_pushinteger(L, s->sum);
+    lua_setfield(L, 2, "sum");
+
+    lua_pushinteger(L, s->min);
+    lua_setfield(L, 2, "min");
+
+    lua_pushinteger(L, s->max);
+    lua_setfield(L, 2, "max");
+
+    lua_pushnumber(L, s->M2);
+    lua_setfield(L, 2, "M2");
+
+    lua_pushnumber(L, s->mean);
+    lua_setfield(L, 2, "mean");
+
     lua_pushinteger(L, s->base_kb);
     lua_setfield(L, 2, "base_kb");
 
     return 1;
 }
 
-static int count_lua(lua_State *L)
+static int stddev_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
-    lua_pushinteger(L, s->count);
+    if (s->count < 2) {
+        lua_pushnumber(L, 0.0);
+    } else {
+        lua_pushnumber(L, sqrt(s->M2 / (s->count - 1)));
+    }
+    return 1;
+}
+
+static int variance_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    if (s->count < 2) {
+        lua_pushnumber(L, 0.0);
+    } else {
+        lua_pushnumber(L, s->M2 / (s->count - 1));
+    }
+    return 1;
+}
+
+static int mean_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    lua_pushnumber(L, s->mean);
+    return 1;
+}
+
+static int max_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    lua_pushinteger(L, s->max);
+    return 1;
+}
+
+static int min_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    lua_pushinteger(L, s->min);
     return 1;
 }
 
@@ -105,6 +156,13 @@ static int capacity_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
     lua_pushinteger(L, s->capacity);
+    return 1;
+}
+
+static int count_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    lua_pushinteger(L, s->count);
     return 1;
 }
 
@@ -245,7 +303,7 @@ static int restore_lua(lua_State *L)
 
     // Create samples object
     s          = new_measure_samples(L, capacity, gc_step, cl, rciw);
-    s->count   = count;
+    s->count   = 0;
     s->base_kb = base_kb;
 
     // Check if the table has the required fields
@@ -272,13 +330,14 @@ static int restore_lua(lua_State *L)
     CHECK_TABLE_FIELD(before_kb);
 #define AFTER_KB_FIELD (top + 3)
     CHECK_TABLE_FIELD(after_kb);
-#define ALLOCATED_KB_FIELD (top + 4)
-    CHECK_TABLE_FIELD(allocated_kb);
 
 #undef CHECK_TABLE_FIELD
 
     // Fill data from table arrays (only up to count)
+    s->min = UINT64_MAX; // ensure any sample will be less
     for (size_t i = 1; i <= count; i++) {
+        measure_samples_data_t data;
+
 #define COPY_ARRAY_VALUE(field, idx)                                           \
     do {                                                                       \
         lua_rawgeti(L, (idx), i);                                              \
@@ -289,14 +348,16 @@ static int restore_lua(lua_State *L)
             return 2;                                                          \
         }                                                                      \
         lua_pop(L, 1);                                                         \
-        s->data[i - 1].field = (typeof(s->data[i - 1].field))iv;               \
+        data.field = (typeof(data.field))iv;                                   \
     } while (0)
 
         // Copy values from each field array
         COPY_ARRAY_VALUE(time_ns, TIME_NS_FIELD);
         COPY_ARRAY_VALUE(before_kb, BEFORE_KB_FIELD);
         COPY_ARRAY_VALUE(after_kb, AFTER_KB_FIELD);
-        COPY_ARRAY_VALUE(allocated_kb, ALLOCATED_KB_FIELD);
+        // update sample data and related statistics
+        measure_samples_update_sample_ex(s, data.time_ns, data.before_kb,
+                                         data.after_kb);
     }
 
     // Clean up the stack and return the new measure_samples_t object
@@ -354,6 +415,11 @@ LUALIB_API int luaopen_measure_samples(lua_State *L)
             {"gc_step",  gc_step_lua },
             {"cl",       cl_lua      },
             {"rciw",     rciw_lua    },
+            {"min",      min_lua     },
+            {"max",      max_lua     },
+            {"mean",     mean_lua    },
+            {"variance", variance_lua},
+            {"stddev",   stddev_lua  },
             {"dump",     dump_lua    },
             {NULL,       NULL        }
         };

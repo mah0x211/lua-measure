@@ -92,7 +92,6 @@ function testcase.error_handling()
         time_ns = {},
         before_kb = {},
         after_kb = {},
-        allocated_kb = {},
         capacity = 10, -- capacity must be > 0
         count = 0, -- but count can be 0
         gc_step = 0,
@@ -139,12 +138,6 @@ function testcase.nan_variance_handling()
             0,
         },
         after_kb = {
-            0,
-            0,
-            0,
-            0,
-        },
-        allocated_kb = {
             0,
             0,
             0,
