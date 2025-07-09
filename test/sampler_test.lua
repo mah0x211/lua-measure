@@ -5,7 +5,7 @@ local sampler = require('measure.sampler')
 
 -- Test measure.sampler module (function-based API)
 function testcase.sampler_basic_call()
-    local samples = new_samples(10)
+    local samples = new_samples(nil, 10)
 
     -- Test basic function call
     local count = 0
@@ -17,7 +17,7 @@ function testcase.sampler_basic_call()
 end
 
 function testcase.sampler_invalid_args()
-    local samples = new_samples(10)
+    local samples = new_samples(nil, 10)
 
     -- Test non-function first argument
     assert.throws(function()
@@ -50,7 +50,7 @@ function testcase.sampler_invalid_args()
 end
 
 function testcase.sampler_run_basic()
-    local samples = new_samples(10)
+    local samples = new_samples(nil, 10)
 
     -- Test basic run (uses full capacity by default)
     local count = 0
@@ -87,7 +87,7 @@ function testcase.sampler_run_basic()
 end
 
 function testcase.sampler_run_with_warmup()
-    local samples = new_samples(100)
+    local samples = new_samples(nil, 100)
 
     -- Test with warmup (using new API: function, samples, warmup)
     local warmup_count = 0
@@ -114,7 +114,7 @@ function testcase.sampler_run_with_warmup()
     assert.equal(#samples, 100)
 
     -- Test with 0 warmup (no warmup)
-    local samples2 = new_samples(10)
+    local samples2 = new_samples(nil, 10)
     warmup_count = 0
     sample_count = 0
     ok = sampler(function(is_warmup)
@@ -134,7 +134,7 @@ function testcase.sampler_run_with_warmup()
 end
 
 function testcase.sampler_warmup_error_handling()
-    local samples = new_samples(10)
+    local samples = new_samples(nil, 10)
 
     -- Test warmup error handling
     local ok, err_msg = sampler(function(is_warmup)
@@ -147,7 +147,7 @@ function testcase.sampler_warmup_error_handling()
 end
 
 function testcase.sampler_invalid_warmup_args()
-    local samples = new_samples(10)
+    local samples = new_samples(nil, 10)
 
     -- Test invalid warmup values
     -- Note: Based on sampler.c, negative warmup is normalized to 0, so it doesn't throw
@@ -162,7 +162,7 @@ function testcase.sampler_invalid_warmup_args()
 end
 
 function testcase.sampler_function_errors()
-    local samples = new_samples(10)
+    local samples = new_samples(nil, 10)
 
     -- Test runtime error handling
     local ok, err = sampler(function()
@@ -192,7 +192,7 @@ end
 
 function testcase.sampler_edge_cases()
     -- Test with capacity 1
-    local samples = new_samples(1)
+    local samples = new_samples(nil, 1)
 
     local count = 0
     local ok = sampler(function()
@@ -210,7 +210,7 @@ function testcase.sampler_edge_cases()
 end
 
 function testcase.sampler_performance_characteristics()
-    local samples = new_samples(100)
+    local samples = new_samples(nil, 100)
 
     -- Test with very fast function
     local ok = sampler(function()
@@ -232,7 +232,7 @@ function testcase.sampler_performance_characteristics()
     end
 
     -- Test with slower function
-    local samples2 = new_samples(10)
+    local samples2 = new_samples(nil, 10)
 
     ok = sampler(function()
         -- Do some work
@@ -259,7 +259,7 @@ function testcase.sampler_memory_management()
     local samples_list = {}
 
     for i = 1, 10 do
-        samples_list[i] = new_samples(5)
+        samples_list[i] = new_samples(nil, 5)
     end
 
     -- Use them
@@ -282,7 +282,7 @@ function testcase.sampler_memory_management()
     collectgarbage('collect')
 
     -- Test large data
-    local big_samples = new_samples(1000)
+    local big_samples = new_samples(nil, 1000)
 
     local ok = sampler(function()
         -- Small loop to ensure measurable time
@@ -303,7 +303,7 @@ end
 
 function testcase.sampler_gc_behavior()
     -- Test with function-based API - no persistent sampler object
-    local samples = new_samples(10)
+    local samples = new_samples(nil, 10)
 
     local ok = sampler(function()
         -- Add small loop to ensure measurable time
@@ -319,7 +319,7 @@ function testcase.sampler_gc_behavior()
 end
 
 function testcase.sampler_function_protection()
-    local samples = new_samples(10)
+    local samples = new_samples(nil, 10)
 
     -- Test argument validation (already covered in sampler_invalid_args)
     -- Function-based API doesn't have method protection issues
@@ -330,7 +330,7 @@ end
 
 function testcase.sampler_samples_reset()
     -- Test that samples are reset on each run
-    local samples = new_samples(5)
+    local samples = new_samples(nil, 5)
 
     -- First run
     local ok = sampler(function()
@@ -358,7 +358,7 @@ end
 function testcase.sampler_memory_error_simulation()
     -- Test memory allocation error handling
     -- This is difficult to simulate in normal conditions
-    local samples = new_samples(1)
+    local samples = new_samples(nil, 1)
 
     -- Test with a function that allocates a lot of memory
     -- This won't trigger LUA_ERRMEM but tests the path exists
@@ -377,7 +377,7 @@ function testcase.sampler_memory_error_simulation()
 end
 
 function testcase.sampler_with_gc_data()
-    local samples = new_samples(10, 0) -- Full GC mode
+    local samples = new_samples(nil, 10, 0) -- Full GC mode
 
     -- Test with function that allocates memory
     local count = 0
@@ -419,7 +419,7 @@ function testcase.sampler_with_gc_data()
 end
 
 function testcase.sampler_gc_with_warmup()
-    local samples = new_samples(5, -1) -- Disabled GC mode
+    local samples = new_samples(nil, 5, -1) -- Disabled GC mode
 
     -- Test with GC data collection and warmup
     local warmup_count = 0
@@ -451,9 +451,9 @@ function testcase.sampler_gc_with_warmup()
 end
 
 function testcase.sampler_different_gc_modes()
-    local samples1 = new_samples(3, -1) -- Disabled GC
-    local samples2 = new_samples(3, 0) -- Full GC
-    local samples3 = new_samples(3, 1024) -- Step GC
+    local samples1 = new_samples(nil, 3, -1) -- Disabled GC
+    local samples2 = new_samples(nil, 3, 0) -- Full GC
+    local samples3 = new_samples(nil, 3, 1024) -- Step GC
 
     local test_func = function(is_warmup)
         if not is_warmup then
@@ -493,7 +493,7 @@ function testcase.sampler_different_gc_modes()
 end
 
 function testcase.sampler_gc_data_without_allocation()
-    local samples = new_samples(5, 0) -- Full GC mode
+    local samples = new_samples(nil, 5, 0) -- Full GC mode
 
     -- Test function that doesn't allocate memory
     local count = 0
@@ -522,7 +522,7 @@ function testcase.sampler_gc_data_without_allocation()
 end
 
 function testcase.sampler_gc_error_handling()
-    local samples = new_samples(3, 0) -- Full GC mode
+    local samples = new_samples(nil, 3, 0) -- Full GC mode
 
     -- Test function error with GC data collection
     local ok, err = sampler(function(is_warmup)
