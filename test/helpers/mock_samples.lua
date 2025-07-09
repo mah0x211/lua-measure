@@ -58,6 +58,7 @@ local function create_mock_samples(time_values, confidence_level, rciw, opts)
     end
     
     local data = {
+        name = opts.name or nil, -- Add name field support
         time_ns = {},
         before_kb = {},
         after_kb = {},
