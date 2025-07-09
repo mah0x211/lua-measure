@@ -38,38 +38,71 @@ end
 -- Test measure.samples module basic functionality
 
 function testcase.constructor_default_values()
-    -- Test default capacity
+    -- Test default capacity without name
     local s = new_samples()
     assert.match(tostring(s), '^measure.samples: ', false)
+    assert.match(s:name(), '^0x', false)
     assert.equal(s:capacity(), 1000)
     assert.equal(#s, 0)
 
-    -- Test custom capacity
-    s = new_samples(100)
+    -- Test custom capacity without name
+    s = new_samples(nil, 100)
     assert.equal(s:capacity(), 100)
     assert.equal(#s, 0)
 
-    -- Test large capacity
-    s = new_samples(10000)
+    -- Test large capacity without name
+    s = new_samples(nil, 10000)
     assert.equal(s:capacity(), 10000)
     assert.equal(#s, 0)
 end
 
+function testcase.constructor_with_name()
+    -- Test with name
+    local s = new_samples("test_benchmark")
+    assert.equal(tostring(s), "measure.samples: test_benchmark")
+    assert.equal(s:name(), "test_benchmark")
+    assert.equal(s:capacity(), 1000) -- Default capacity
+    assert.equal(#s, 0)
+
+    -- Test with name and capacity
+    s = new_samples("my_test", 500)
+    assert.equal(tostring(s), "measure.samples: my_test")
+    assert.equal(s:name(), "my_test")
+    assert.equal(s:capacity(), 500)
+    assert.equal(#s, 0)
+
+    -- Test with empty name
+    s = new_samples("")
+    assert.match(tostring(s), "^measure%.samples: ", false)
+    assert.match(s:name(), "^0x", false)
+    assert.equal(s:capacity(), 1000)
+    assert.equal(#s, 0)
+end
+
+function testcase.constructor_invalid_name()
+    -- Test with name that is too long (>255 characters)
+    local long_name = string.rep("a", 256)
+    local s, err = new_samples(long_name)
+    assert.is_nil(s)
+    assert.match(err, "name must be <= 255 characters", false)
+
+    -- Test with exactly 255 characters (should work)
+    local max_name = string.rep("b", 255)
+    s = new_samples(max_name)
+    assert.equal(tostring(s), "measure.samples: " .. max_name)
+    assert.equal(s:name(), max_name)
+    assert.equal(s:capacity(), 1000)
+end
+
 function testcase.constructor_invalid_arguments()
     -- Test invalid capacity (returns nil + error message)
-    local s, err = new_samples(0)
+    local s, err = new_samples(nil, 0)
     assert.is_nil(s)
     assert.match(err, "capacity must be > 0", false)
 
-    s, err = new_samples(-1)
+    s, err = new_samples(nil, -1)
     assert.is_nil(s)
     assert.match(err, "capacity must be > 0", false)
-
-    -- Test non-integer arguments (luaL_optinteger throws error for non-numbers)
-    -- These should throw errors
-    assert.throws(function()
-        new_samples('invalid')
-    end)
 
     -- Test empty table (restoration mode but missing fields - type check will fail)
     assert.throws(function()
@@ -80,13 +113,22 @@ function testcase.constructor_invalid_arguments()
         new_samples(true)
     end)
 
-    -- Test multiple arguments (only capacity used, others ignored)
-    s = new_samples(100)
+    -- Test with name and invalid capacity
+    s, err = new_samples("test", 0)
+    assert.is_nil(s)
+    assert.match(err, "capacity must be > 0", false)
+
+    -- Test with name and all valid parameters
+    s = new_samples("test", 100, 1024, 99, 1)
+    assert.equal(tostring(s), "measure.samples: test")
     assert.equal(s:capacity(), 100)
+    assert.equal(s:gc_step(), 1024)
+    assert.equal(s:cl(), 99)
+    assert.equal(s:rciw(), 1)
 end
 
 function testcase.dump_data_structure()
-    local s = new_samples(10)
+    local s = new_samples(nil, 10)
 
     -- Test empty dump with new column-oriented format
     local data = s:dump()
@@ -123,6 +165,19 @@ function testcase.dump_data_structure()
     assert.equal(data.M2, 0)
     assert.is_number(data.mean)
     assert.equal(data.mean, 0)
+    -- name field should not exist for samples without name
+    assert.is_nil(data.name)
+end
+
+function testcase.dump_data_structure_with_name()
+    local s = new_samples("test_dump", 10)
+
+    -- Test dump with name
+    local data = s:dump()
+    assert.is_table(data)
+    assert.equal(data.name, "test_dump")
+    assert.equal(data.capacity, 10)
+    assert.equal(data.count, 0)
 end
 
 -- Test restoration functionality extensively
@@ -136,6 +191,7 @@ function testcase.samples_restore_valid_data()
         4000,
         5000,
     }, {
+        name = "restored_samples",
         capacity = 10,
         gc_step = 2048,
         base_kb = 512,
@@ -165,11 +221,14 @@ function testcase.samples_restore_valid_data()
     })
 
     local s = new_samples(original_data)
+    assert.equal(tostring(s), "measure.samples: restored_samples")
+    assert.equal(s:name(), "restored_samples")
     assert.equal(s:capacity(), 10)
     assert.equal(#s, 5)
 
     -- Verify data was restored correctly
     local dump = s:dump()
+    assert.equal(dump.name, "restored_samples")
     assert.equal(dump.capacity, 10)
     assert.equal(dump.count, 5)
     assert.equal(dump.gc_step, 2048)
@@ -479,22 +538,22 @@ end
 
 function testcase.samples_edge_cases()
     -- Test with minimum capacity (1)
-    local s1 = new_samples(1)
+    local s1 = new_samples(nil, 1)
     assert.equal(s1:capacity(), 1)
     assert.equal(#s1, 0)
 
     -- Test with very large capacity
-    local s2 = new_samples(1000000)
+    local s2 = new_samples(nil, 1000000)
     assert.equal(s2:capacity(), 1000000)
     assert.equal(#s2, 0)
 
     -- Test gc_step normalization (negative values become -1)
-    local s3 = new_samples(10, -100)
+    local s3 = new_samples(nil, 10, -100)
     assert.equal(s3:capacity(), 10)
     assert.equal(s3:gc_step(), -1) -- Verify gc_step was normalized
 
     -- Test very large gc_step
-    local s4 = new_samples(10, 999999)
+    local s4 = new_samples(nil, 10, 999999)
     assert.equal(s4:capacity(), 10)
     assert.equal(s4:gc_step(), 999999) -- Verify gc_step is preserved
 end
@@ -508,6 +567,7 @@ function testcase.samples_metadata_preservation()
         4000,
         5000,
     }, {
+        name = "meta_preserve",
         capacity = 10, -- Different from count to test this scenario
         gc_step = 2048,
         base_kb = 512,
@@ -538,6 +598,7 @@ function testcase.samples_metadata_preservation()
 
     -- Create samples from original data
     local s1 = new_samples(original_data)
+    assert.equal(tostring(s1), "measure.samples: meta_preserve")
     assert.equal(s1:capacity(), 10)
     assert.equal(#s1, 5)
 
@@ -545,6 +606,7 @@ function testcase.samples_metadata_preservation()
     local dump = s1:dump()
 
     -- Verify all metadata fields are present
+    assert.equal(dump.name, "meta_preserve")
     assert.equal(dump.capacity, 10)
     assert.equal(dump.count, 5)
     assert.equal(dump.gc_step, 2048)
@@ -558,11 +620,13 @@ function testcase.samples_metadata_preservation()
 
     -- Restore from dump
     local s2 = new_samples(dump)
+    assert.equal(tostring(s2), "measure.samples: meta_preserve")
     assert.equal(s2:capacity(), 10)
     assert.equal(#s2, 5)
 
     -- Test another dump to ensure multiple round-trips work
     local dump2 = s2:dump()
+    assert.equal(dump2.name, "meta_preserve")
     assert.equal(dump2.capacity, 10)
     assert.equal(dump2.count, 5)
     assert.equal(dump2.gc_step, 2048)
@@ -573,7 +637,7 @@ end
 
 function testcase.statistical_methods_empty_samples()
     -- Test statistical methods with empty samples (count = 0)
-    local s = new_samples(10)
+    local s = new_samples(nil, 10)
     assert.equal(#s, 0)
 
     -- Test min should return 0 for empty samples
@@ -953,7 +1017,7 @@ function testcase.statistical_methods_comprehensive()
     -- Test all statistical methods with different sample scenarios
 
     -- Test 1: Empty samples - all methods should return 0
-    local s = new_samples(10)
+    local s = new_samples(nil, 10)
     assert.equal(s:min(), 0)
     assert.equal(s:max(), 0)
     assert.equal(s:mean(), 0)

@@ -59,6 +59,7 @@ typedef struct {
     int gc_step;          // GC step size in KB (0 for full GC)
     int ref_data;         // reference to Lua data array
     measure_samples_data_t *data; // array of samples in nanoseconds
+    char name[256]; // Name of the sample (e.g., "sample1", "sample2")
 } measure_samples_t;
 
 /**
