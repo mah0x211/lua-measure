@@ -21,6 +21,22 @@
  */
 
 #include "measure_samples.h"
+#include "stats/common.h"
+
+static int percentile_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    lua_Integer p        = luaL_checkinteger(L, 2);
+    double result        = NAN;
+
+    if (p < 0 || p > 100) {
+        luaL_error(L, "percentile must be between 0 and 100, got %d", p);
+    } else if (s->count) {
+        result = stats_percentile(s, (double)p);
+    }
+    lua_pushnumber(L, result);
+    return 1;
+}
 
 static int dump_lua(lua_State *L)
 {
@@ -473,18 +489,20 @@ LUALIB_API int luaopen_measure_samples(lua_State *L)
             {NULL,         NULL        }
         };
         struct luaL_Reg method[] = {
-            {"name",     name_lua    },
-            {"capacity", capacity_lua},
-            {"gc_step",  gc_step_lua },
-            {"cl",       cl_lua      },
-            {"rciw",     rciw_lua    },
-            {"min",      min_lua     },
-            {"max",      max_lua     },
-            {"mean",     mean_lua    },
-            {"variance", variance_lua},
-            {"stddev",   stddev_lua  },
-            {"dump",     dump_lua    },
-            {NULL,       NULL        }
+            {"name",       name_lua      },
+            {"capacity",   capacity_lua  },
+            {"gc_step",    gc_step_lua   },
+            {"cl",         cl_lua        },
+            {"rciw",       rciw_lua      },
+            {"min",        min_lua       },
+            {"max",        max_lua       },
+            {"mean",       mean_lua      },
+            {"variance",   variance_lua  },
+            {"stddev",     stddev_lua    },
+            {"dump",       dump_lua      },
+            // calculate statistics
+            {"percentile", percentile_lua},
+            {NULL,         NULL          }
         };
 
         // metamethods
