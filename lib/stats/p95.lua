@@ -19,13 +19,11 @@
 -- FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 -- DEALINGS IN THE SOFTWARE.
 --
-local percentile = require('measure.stats.percentile')
-
 --- Calculates the 95th percentile of a set of samples
 --- @param samples measure.samples An instance of measure.samples
 --- @return number The 95th percentile value of the samples
 local function p95(samples)
-    return percentile(samples, 95)
+    return samples:percentile(95)
 end
 
 return p95

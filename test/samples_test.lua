@@ -1191,3 +1191,123 @@ function testcase.restore_statistical_edge_cases()
     assert.equal(dump3.M2, 0)
 end
 
+function testcase.percentile()
+    -- Test p50 (median) with odd number of values
+    local s_odd = new_samples(create_samples_data({
+        1000,
+        2000,
+        3000,
+        4000,
+        5000,
+    }))
+    local p50 = s_odd:percentile(50)
+    assert.equal(p50, 3000) -- Middle value
+
+    -- Test with even number of values
+    local s_even = new_samples(create_samples_data({
+        1000,
+        2000,
+        3000,
+        4000,
+    }))
+    local p50_even = s_even:percentile(50)
+    assert.equal(p50_even, 2500) -- (2000+3000)/2 = 2500
+
+    -- Test with single value
+    local s_single = new_samples(create_samples_data({
+        12345,
+    }))
+    assert.equal(s_single:percentile(50), 12345.0)
+
+    -- Test with unsorted data (should still work correctly)
+    local s_unsorted = new_samples(create_samples_data({
+        5000,
+        1000,
+        3000,
+        2000,
+        4000,
+    }))
+    assert.equal(s_unsorted:percentile(50), 3000)
+
+    -- Test various percentiles
+    local s = new_samples(create_samples_data({
+        1000,
+        2000,
+        3000,
+        4000,
+        5000,
+        6000,
+        7000,
+        8000,
+        9000,
+        10000,
+    }))
+    -- Test 0th percentile (minimum)
+    assert.equal(s:percentile(0), 1000.0)
+
+    -- Test 25th percentile
+    local p25 = s:percentile(25)
+    assert.greater_or_equal(p25, 2000)
+    assert.less_or_equal(p25, 4000)
+
+    -- Test 75th percentile
+    local p75 = s:percentile(75)
+    assert.greater_or_equal(p75, 7000)
+    assert.less_or_equal(p75, 9000)
+
+    -- Test 100th percentile (maximum)
+    assert.equal(s:percentile(100), 10000)
+
+    -- Test edge cases
+    -- Test with identical values
+    local s_identical = new_samples(create_samples_data({
+        5000,
+        5000,
+        5000,
+        5000,
+    }))
+    assert.equal(s_identical:percentile(25), 5000)
+    assert.equal(s_identical:percentile(50), 5000)
+    assert.equal(s_identical:percentile(75), 5000)
+
+    -- Test with two values
+    local s_two = new_samples(create_samples_data({
+        1000,
+        3000,
+    }))
+    assert.equal(s_two:percentile(0), 1000)
+    assert.equal(s_two:percentile(50), 2000)
+    assert.equal(s_two:percentile(100), 3000)
+
+    -- Test error handling
+    s = new_samples(create_samples_data({
+        1000,
+        2000,
+        3000,
+    }))
+
+    -- Test with nil samples should throw error
+    local err = assert.throws(function()
+        s:percentile(nil)
+    end)
+    assert.re_match(err, 'percentile.+number expected, got nil')
+
+    -- Test with invalid percentile values
+    err = assert.throws(function()
+        s:percentile(-1) -- Negative percentile
+    end)
+    assert.re_match(err, 'percentile.+must be between 0 and 100')
+
+    err = assert.throws(function()
+        s:percentile(101) -- > 100
+    end)
+    assert.re_match(err, 'percentile.+must be between 0 and 100')
+
+    -- Test with empty samples should return NaN
+    local empty_samples = new_samples(create_samples_data({}, {
+        capacity = 10,
+    }))
+    local not_a_number = empty_samples:percentile(50)
+    assert.is_nan(not_a_number)
+end
+
