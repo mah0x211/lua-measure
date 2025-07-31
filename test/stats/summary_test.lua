@@ -9,7 +9,6 @@ local stddev = require('measure.stats.stddev')
 local stderr = require('measure.stats.stderr')
 local cv = require('measure.stats.cv')
 local iqr = require('measure.stats.iqr')
-local max = require('measure.stats.max')
 local throughput = require('measure.stats.throughput')
 
 local mock_samples = require('./test/helpers/mock_samples')
@@ -117,8 +116,8 @@ function testcase.from_stats()
     assert.equal(result.stderr, stderr(s))
     assert.equal(result.cv, cv(s))
     assert.equal(result.iqr, iqr(s))
-    assert.equal(result.max, max(s))
     assert.equal(result.min, 1000) -- minimum value
+    assert.equal(result.max, 3000) -- maximum value
     assert.equal(result.throughput, throughput(s))
 end
 
