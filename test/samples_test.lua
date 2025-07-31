@@ -637,8 +637,8 @@ function testcase.statistical_methods_empty_samples()
     local s = new_samples(nil, 10)
     assert.equal(#s, 0)
 
-    -- Test min should return 0 for empty samples
-    assert.equal(s:min(), 0)
+    -- Test min should return NaN for empty samples
+    assert.is_nan(s:min())
 
     -- Test max should return 0 for empty samples
     assert.equal(s:max(), 0)
@@ -984,9 +984,9 @@ end
 function testcase.statistical_methods_comprehensive()
     -- Test all statistical methods with different sample scenarios
 
-    -- Test 1: Empty samples - all methods should return 0
+    -- Test 1: Empty samples
     local s = new_samples(nil, 10)
-    assert.equal(s:min(), 0)
+    assert.is_nan(s:min())
     assert.equal(s:max(), 0)
     assert.equal(s:mean(), 0)
     assert.equal(s:variance(), 0)
@@ -994,7 +994,7 @@ function testcase.statistical_methods_comprehensive()
     assert.equal(#s, 0)
 
     -- Test 2: Single sample - min == max == mean, variance and stddev should be 0
-    local s = create_samples_data({
+    s = create_samples_data({
         1000,
     }, {
         capacity = 1,
@@ -1265,5 +1265,61 @@ function testcase.percentile()
     })
     local not_a_number = empty_samples:percentile(50)
     assert.is_nan(not_a_number)
+end
+
+function testcase.min()
+    -- Test min should return NaN for empty samples
+    local s = new_samples()
+    assert.is_nan(s:min())
+
+    -- Test with simple integer values
+    s = create_samples_data({
+        5000,
+        1000,
+        3000,
+        2000,
+        4000,
+    })
+    assert.equal(s:min(), 1000.0) -- minimum value
+
+    -- Test with single value
+    local s_single = create_samples_data({
+        42000,
+    })
+    assert.equal(s_single:min(), 42000.0)
+
+    -- Test with unsorted values
+    local s_unsorted = create_samples_data({
+        3000,
+        1000,
+        2000,
+    })
+    assert.equal(s_unsorted:min(), 1000.0)
+
+    -- Test with duplicate values
+    local s_duplicates = create_samples_data({
+        1000,
+        500,
+        2000,
+        500,
+    })
+    assert.equal(s_duplicates:min(), 500.0)
+
+    -- Test min calculation edge cases
+    -- Test with identical values
+    local s_identical = create_samples_data({
+        5000,
+        5000,
+        5000,
+    })
+    assert.equal(s_identical:min(), 5000.0)
+
+    -- Test with large numbers
+    local s_large = create_samples_data({
+        1000000000,
+        2000000000,
+        500000000,
+    })
+    assert.equal(s_large:min(), 500000000.0)
 end
 

@@ -21,7 +21,6 @@
 --
 -- Core C modules
 local mean = require('measure.stats.mean')
-local min = require('measure.stats.min')
 local max = require('measure.stats.max')
 local stddev = require('measure.stats.stddev')
 local variance = require('measure.stats.variance')
@@ -48,8 +47,8 @@ local function summary(samples)
         variance = variance(samples),
         cv = cv(samples),
         iqr = iqr(samples),
-        min = min(samples),
         max = max(samples),
+        min = samples:min(),
         p25 = p25(samples),
         p50 = median(samples),
         p75 = p75(samples),

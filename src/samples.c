@@ -148,7 +148,11 @@ static int max_lua(lua_State *L)
 static int min_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
-    lua_pushinteger(L, s->min);
+    if (s->count == 0) {
+        lua_pushnumber(L, NAN);
+    } else {
+        lua_pushinteger(L, s->min);
+    }
     return 1;
 }
 
