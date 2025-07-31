@@ -66,7 +66,7 @@ function testcase.single_sample()
     assert.equal(result.min, 1000)
     assert.equal(result.max, 1000)
     assert.equal(result.p50, 1000)
-    assert.equal(result.stderr, 0.0)
+    assert.is_nan(result.stderr)
     assert.equal(result.iqr, 0.0)
 end
 
@@ -126,9 +126,9 @@ function testcase.nan_handling()
         1000,
     })
 
-    -- stderr should be 0 for single sample
-    assert.equal(stderr(s_single), 0.0)
+    -- stderr should be NaN for single sample
+    assert.is_nan(stderr(s_single))
 
-    -- cv should be 0 for single sample (stddev=0)
-    assert.equal(cv(s_single), 0.0)
+    -- cv should be NaN for single sample (stddev=0)
+    assert.is_nan(cv(s_single))
 end
