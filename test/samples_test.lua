@@ -32,7 +32,7 @@ local function create_samples_data(time_values, extra_fields)
         data.allocated_kb[i] = 0
     end
 
-    return data
+    return new_samples(data)
 end
 
 -- Test measure.samples module basic functionality
@@ -184,7 +184,7 @@ end
 
 function testcase.samples_restore_valid_data()
     -- Test restoration with valid data using helper function
-    local original_data = create_samples_data({
+    local s = create_samples_data({
         1000,
         2000,
         3000,
@@ -219,8 +219,6 @@ function testcase.samples_restore_valid_data()
             5,
         },
     })
-
-    local s = new_samples(original_data)
     assert.equal(tostring(s), "measure.samples: restored_samples")
     assert.equal(s:name(), "restored_samples")
     assert.equal(s:capacity(), 10)
@@ -560,7 +558,7 @@ end
 
 function testcase.samples_metadata_preservation()
     -- Test metadata preservation through dump/restore cycle
-    local original_data = create_samples_data({
+    local s1 = create_samples_data({
         1000,
         2000,
         3000,
@@ -597,7 +595,6 @@ function testcase.samples_metadata_preservation()
     })
 
     -- Create samples from original data
-    local s1 = new_samples(original_data)
     assert.equal(tostring(s1), "measure.samples: meta_preserve")
     assert.equal(s1:capacity(), 10)
     assert.equal(#s1, 5)
@@ -658,7 +655,7 @@ end
 
 function testcase.statistical_methods_basic()
     -- Test statistical methods with restored samples
-    local data = create_samples_data({
+    local s = create_samples_data({
         1000,
         2000,
         3000,
@@ -667,8 +664,6 @@ function testcase.statistical_methods_basic()
     }, {
         capacity = 10,
     })
-
-    local s = new_samples(data)
 
     -- Test basic functionality and consistency
     assert.is_number(s:min())
@@ -687,13 +682,11 @@ end
 
 function testcase.statistical_methods_single_sample()
     -- Test statistical methods with single sample
-    local data = create_samples_data({
+    local s = create_samples_data({
         1500,
     }, {
         capacity = 5,
     })
-
-    local s = new_samples(data)
 
     -- Test basic functionality and consistency
     assert.is_number(s:min())
@@ -710,14 +703,12 @@ end
 
 function testcase.statistical_methods_two_samples()
     -- Test statistical methods with two samples
-    local data = create_samples_data({
+    local s = create_samples_data({
         1000,
         3000,
     }, {
         capacity = 5,
     })
-
-    local s = new_samples(data)
 
     assert.is_number(s:min())
     assert.is_number(s:max())
@@ -732,7 +723,7 @@ end
 
 function testcase.statistical_methods_same_values()
     -- Test with all same values (variance should be 0)
-    local data = create_samples_data({
+    local s = create_samples_data({
         2500,
         2500,
         2500,
@@ -740,8 +731,6 @@ function testcase.statistical_methods_same_values()
     }, {
         capacity = 5,
     })
-
-    local s = new_samples(data)
 
     assert.is_number(s:min())
     assert.is_number(s:max())
@@ -753,15 +742,13 @@ end
 function testcase.statistical_methods_large_values()
     -- Test with large values within safe integer range
     local large_val = 1e15 -- 1 quadrillion nanoseconds (safe)
-    local data = create_samples_data({
+    local s = create_samples_data({
         large_val - 1000,
         large_val,
         large_val + 1000,
     }, {
         capacity = 5,
     })
-
-    local s = new_samples(data)
 
     assert.is_number(s:min())
     assert.is_number(s:max())
@@ -776,7 +763,7 @@ end
 
 function testcase.dump_statistical_fields()
     -- Test that dump() includes all statistical fields with correct values
-    local data = create_samples_data({
+    local s = create_samples_data({
         100,
         200,
         300,
@@ -786,7 +773,6 @@ function testcase.dump_statistical_fields()
         capacity = 10,
     })
 
-    local s = new_samples(data)
     local dump = s:dump()
 
     -- Verify all statistical fields are present in dump
@@ -804,7 +790,7 @@ end
 
 function testcase.dump_preserve_statistical_fields()
     -- Test that statistical fields are preserved through dump/restore cycle
-    local original_data = create_samples_data({
+    local s1 = create_samples_data({
         1000,
         2000,
         3000,
@@ -813,7 +799,6 @@ function testcase.dump_preserve_statistical_fields()
     })
 
     -- Create samples and dump
-    local s1 = new_samples(original_data)
     local dump1 = s1:dump()
 
     -- Restore from dump
@@ -835,7 +820,7 @@ end
 
 function testcase.samples_restore_capacity_vs_count()
     -- Test restoration where capacity > count
-    local data_partial = create_samples_data({
+    local s = create_samples_data({
         1000,
         2000,
     }, {
@@ -856,7 +841,6 @@ function testcase.samples_restore_capacity_vs_count()
         },
     })
 
-    local s = new_samples(data_partial)
     assert.equal(s:capacity(), 5)
     assert.equal(#s, 2)
 
@@ -876,11 +860,10 @@ function testcase.statistical_calculation_accuracy()
         values1[i] = i * 1000 -- Convert to nanoseconds
     end
 
-    local data1 = create_samples_data(values1, {
+    local s1 = create_samples_data(values1, {
         capacity = 10,
     })
 
-    local s1 = new_samples(data1)
     assert.is_number(s1:mean())
     assert.is_number(s1:variance())
     assert.is_number(s1:stddev())
@@ -897,11 +880,10 @@ function testcase.statistical_calculation_accuracy()
         50000,
     }
 
-    local data2 = create_samples_data(values2, {
+    local s2 = create_samples_data(values2, {
         capacity = 5,
     })
 
-    local s2 = new_samples(data2)
     assert.is_number(s2:mean())
     assert.is_number(s2:variance())
     assert.is_number(s2:stddev())
@@ -915,19 +897,15 @@ function testcase.welford_method_accuracy()
     -- Test with values that could cause numerical issues with naive method
     -- Use smaller base to avoid integer overflow
     local base = 1e12 -- Large but safe base value
-    local values = {
+    local s, err = create_samples_data({
         base + 1,
         base + 2,
         base + 3,
         base + 4,
         base + 5,
-    }
-
-    local data = create_samples_data(values, {
+    }, {
         capacity = 5,
     })
-
-    local s, err = new_samples(data)
     if not s then
         error("Failed to create samples: " .. (err or "unknown error"))
     end
@@ -945,17 +923,13 @@ end
 function testcase.edge_case_extreme_values()
     -- Test with extremely large values near safe integer limit
     local huge_val = 2 ^ 52 -- Large but safer value
-    local values = {
+    local s, err = create_samples_data({
         huge_val - 2000,
         huge_val - 1000,
         huge_val,
-    }
-
-    local data = create_samples_data(values, {
+    }, {
         capacity = 3,
     })
-
-    local s, err = new_samples(data)
     if not s then
         error("Failed to create samples: " .. (err or "unknown error"))
     end
@@ -968,19 +942,15 @@ end
 
 function testcase.edge_case_zero_values()
     -- Test with all zero values
-    local values = {
+    local s = create_samples_data({
         0,
         0,
         0,
         0,
         0,
-    }
-
-    local data = create_samples_data(values, {
+    }, {
         capacity = 5,
     })
-
-    local s = new_samples(data)
     assert.equal(s:min(), 0)
     assert.equal(s:max(), 0)
     assert.equal(s:mean(), 0)
@@ -998,11 +968,9 @@ function testcase.edge_case_statistical_consistency()
         500,
     }
 
-    local data = create_samples_data(values, {
+    local s = create_samples_data(values, {
         capacity = 5,
     })
-
-    local s = new_samples(data)
 
     -- Verify consistency: min <= mean <= max
     assert(s:min() <= s:mean(), "min should be <= mean")
@@ -1026,12 +994,11 @@ function testcase.statistical_methods_comprehensive()
     assert.equal(#s, 0)
 
     -- Test 2: Single sample - min == max == mean, variance and stddev should be 0
-    local single_data = create_samples_data({
+    local s = create_samples_data({
         1000,
     }, {
         capacity = 1,
     })
-    s = new_samples(single_data)
     assert.is_number(s:min())
     assert.is_number(s:max())
     assert.is_number(s:mean())
@@ -1040,14 +1007,13 @@ function testcase.statistical_methods_comprehensive()
     assert.equal(#s, 1)
 
     -- Test 3: Multiple samples - comprehensive statistical validation
-    local multi_data = create_samples_data({
+    s = create_samples_data({
         500,
         1000,
         1500,
     }, {
         capacity = 3,
     })
-    s = new_samples(multi_data)
     assert.is_number(s:min())
     assert.is_number(s:max())
     assert.is_number(s:mean())
@@ -1076,11 +1042,9 @@ function testcase.restore_statistical_calculation_validation()
         500,
     }
 
-    local data = create_samples_data(test_values, {
+    local s = create_samples_data(test_values, {
         capacity = 10,
     })
-
-    local s = new_samples(data)
 
     -- Verify basic count
     assert.equal(#s, 5)
@@ -1108,15 +1072,13 @@ function testcase.restore_statistical_calculation_validation()
     assert.less_or_equal(math.abs(s:stddev() - expected_stddev), 0.001)
 
     -- Test with identical values (variance should be 0)
-    local identical_data = create_samples_data({
+    local s2 = create_samples_data({
         250,
         250,
         250,
     }, {
         capacity = 5,
     })
-
-    local s2 = new_samples(identical_data)
     assert.equal(s2:min(), 250)
     assert.equal(s2:max(), 250)
     assert.equal(s2:mean(), 250)
@@ -1132,13 +1094,11 @@ function testcase.restore_statistical_edge_cases()
     -- Test edge cases for statistical calculation after restoration
 
     -- Test with single value
-    local single_data = create_samples_data({
+    local s1 = create_samples_data({
         1234,
     }, {
         capacity = 2,
     })
-
-    local s1 = new_samples(single_data)
     assert.equal(s1:min(), 1234)
     assert.equal(s1:max(), 1234)
     assert.equal(s1:mean(), 1234)
@@ -1150,14 +1110,12 @@ function testcase.restore_statistical_edge_cases()
     assert.equal(dump1.M2, 0)
 
     -- Test with two values
-    local two_data = create_samples_data({
+    local s2 = create_samples_data({
         1000,
         2000,
     }, {
         capacity = 5,
     })
-
-    local s2 = new_samples(two_data)
     assert.equal(s2:min(), 1000)
     assert.equal(s2:max(), 2000)
     assert.equal(s2:mean(), 1500) -- (1000+2000)/2
@@ -1171,15 +1129,13 @@ function testcase.restore_statistical_edge_cases()
     assert.equal(s2:stddev(), math.sqrt(500000))
 
     -- Test with zero values
-    local zero_data = create_samples_data({
+    local s3 = create_samples_data({
         0,
         0,
         0,
     }, {
         capacity = 5,
     })
-
-    local s3 = new_samples(zero_data)
     assert.equal(s3:min(), 0)
     assert.equal(s3:max(), 0)
     assert.equal(s3:mean(), 0)
@@ -1193,44 +1149,44 @@ end
 
 function testcase.percentile()
     -- Test p50 (median) with odd number of values
-    local s_odd = new_samples(create_samples_data({
+    local s_odd = create_samples_data({
         1000,
         2000,
         3000,
         4000,
         5000,
-    }))
+    })
     local p50 = s_odd:percentile(50)
     assert.equal(p50, 3000) -- Middle value
 
     -- Test with even number of values
-    local s_even = new_samples(create_samples_data({
+    local s_even = create_samples_data({
         1000,
         2000,
         3000,
         4000,
-    }))
+    })
     local p50_even = s_even:percentile(50)
     assert.equal(p50_even, 2500) -- (2000+3000)/2 = 2500
 
     -- Test with single value
-    local s_single = new_samples(create_samples_data({
+    local s_single = create_samples_data({
         12345,
-    }))
+    })
     assert.equal(s_single:percentile(50), 12345.0)
 
     -- Test with unsorted data (should still work correctly)
-    local s_unsorted = new_samples(create_samples_data({
+    local s_unsorted = create_samples_data({
         5000,
         1000,
         3000,
         2000,
         4000,
-    }))
+    })
     assert.equal(s_unsorted:percentile(50), 3000)
 
     -- Test various percentiles
-    local s = new_samples(create_samples_data({
+    local s = create_samples_data({
         1000,
         2000,
         3000,
@@ -1241,7 +1197,7 @@ function testcase.percentile()
         8000,
         9000,
         10000,
-    }))
+    })
     -- Test 0th percentile (minimum)
     assert.equal(s:percentile(0), 1000.0)
 
@@ -1260,31 +1216,31 @@ function testcase.percentile()
 
     -- Test edge cases
     -- Test with identical values
-    local s_identical = new_samples(create_samples_data({
+    local s_identical = create_samples_data({
         5000,
         5000,
         5000,
         5000,
-    }))
+    })
     assert.equal(s_identical:percentile(25), 5000)
     assert.equal(s_identical:percentile(50), 5000)
     assert.equal(s_identical:percentile(75), 5000)
 
     -- Test with two values
-    local s_two = new_samples(create_samples_data({
+    local s_two = create_samples_data({
         1000,
         3000,
-    }))
+    })
     assert.equal(s_two:percentile(0), 1000)
     assert.equal(s_two:percentile(50), 2000)
     assert.equal(s_two:percentile(100), 3000)
 
     -- Test error handling
-    s = new_samples(create_samples_data({
+    s = create_samples_data({
         1000,
         2000,
         3000,
-    }))
+    })
 
     -- Test with nil samples should throw error
     local err = assert.throws(function()
@@ -1304,9 +1260,9 @@ function testcase.percentile()
     assert.re_match(err, 'percentile.+must be between 0 and 100')
 
     -- Test with empty samples should return NaN
-    local empty_samples = new_samples(create_samples_data({}, {
+    local empty_samples = create_samples_data({}, {
         capacity = 10,
-    }))
+    })
     local not_a_number = empty_samples:percentile(50)
     assert.is_nan(not_a_number)
 end
