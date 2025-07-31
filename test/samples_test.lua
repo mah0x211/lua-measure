@@ -640,8 +640,8 @@ function testcase.statistical_methods_empty_samples()
     -- Test min should return NaN for empty samples
     assert.is_nan(s:min())
 
-    -- Test max should return 0 for empty samples
-    assert.equal(s:max(), 0)
+    -- Test max should return NaN for empty samples
+    assert.is_nan(s:max())
 
     -- Test mean should return 0 for empty samples
     assert.equal(s:mean(), 0)
@@ -987,7 +987,7 @@ function testcase.statistical_methods_comprehensive()
     -- Test 1: Empty samples
     local s = new_samples(nil, 10)
     assert.is_nan(s:min())
-    assert.equal(s:max(), 0)
+    assert.is_nan(s:max())
     assert.equal(s:mean(), 0)
     assert.equal(s:variance(), 0)
     assert.equal(s:stddev(), 0)
@@ -1321,5 +1321,60 @@ function testcase.min()
         500000000,
     })
     assert.equal(s_large:min(), 500000000.0)
+end
+
+function testcase.max()
+    -- Test max should return NaN for empty samples
+    local s = new_samples()
+    assert.is_nan(s:max())
+
+    -- Test with simple integer values
+    s = create_samples_data({
+        1000,
+        5000,
+        3000,
+        2000,
+        4000,
+    })
+    assert.equal(s:max(), 5000) -- maximum value
+
+    -- Test with single value
+    local s_single = create_samples_data({
+        42000,
+    })
+    assert.equal(s_single:max(), 42000)
+
+    -- Test with unsorted values
+    local s_unsorted = create_samples_data({
+        3000,
+        1000,
+        2000,
+    })
+    assert.equal(s_unsorted:max(), 3000)
+
+    -- Test with duplicate values
+    local s_duplicates = create_samples_data({
+        2000,
+        1000,
+        2000,
+        500,
+    })
+    assert.equal(s_duplicates:max(), 2000)
+
+    -- Test with identical values
+    local s_identical = create_samples_data({
+        5000,
+        5000,
+        5000,
+    })
+    assert.equal(s_identical:max(), 5000)
+
+    -- Test with large numbers
+    local s_large = create_samples_data({
+        500000000,
+        1000000000,
+        2000000000,
+    })
+    assert.equal(s_large:max(), 2000000000)
 end
 
