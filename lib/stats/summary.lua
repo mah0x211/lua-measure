@@ -21,7 +21,6 @@
 --
 -- Core C modules
 local stddev = require('measure.stats.stddev')
-local variance = require('measure.stats.variance')
 
 -- Lua modules
 local median = require('measure.stats.median')
@@ -42,7 +41,7 @@ local function summary(samples)
         mean = samples:mean(),
         stddev = stddev(samples),
         stderr = stderr(samples),
-        variance = variance(samples),
+        variance = samples:variance(),
         cv = cv(samples),
         iqr = iqr(samples),
         min = samples:min(),

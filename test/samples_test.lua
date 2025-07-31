@@ -646,8 +646,8 @@ function testcase.statistical_methods_empty_samples()
     -- Test mean should return NaN for empty samples
     assert.is_nan(s:mean())
 
-    -- Test variance should return 0 for empty samples
-    assert.equal(s:variance(), 0)
+    -- Test variance should return NaN for empty samples
+    assert.is_nan(s:variance())
 
     -- Test stddev should return 0 for empty samples
     assert.equal(s:stddev(), 0)
@@ -696,8 +696,8 @@ function testcase.statistical_methods_single_sample()
     assert.is_number(s:stddev())
     assert.equal(#s, 1) -- Check count is correct
 
-    -- For single sample, variance and stddev should be 0
-    assert.equal(s:variance(), 0)
+    -- For single sample, variance=NaN and stddev=0
+    assert.is_nan(s:variance())
     assert.equal(s:stddev(), 0)
 end
 
@@ -989,7 +989,7 @@ function testcase.statistical_methods_comprehensive()
     assert.is_nan(s:min())
     assert.is_nan(s:max())
     assert.is_nan(s:mean())
-    assert.equal(s:variance(), 0)
+    assert.is_nan(s:variance())
     assert.equal(s:stddev(), 0)
     assert.equal(#s, 0)
 
@@ -1002,7 +1002,7 @@ function testcase.statistical_methods_comprehensive()
     assert.is_number(s:min())
     assert.is_number(s:max())
     assert.is_number(s:mean())
-    assert.equal(s:variance(), 0)
+    assert.is_nan(s:variance())
     assert.equal(s:stddev(), 0)
     assert.equal(#s, 1)
 
@@ -1102,7 +1102,7 @@ function testcase.restore_statistical_edge_cases()
     assert.equal(s1:min(), 1234)
     assert.equal(s1:max(), 1234)
     assert.equal(s1:mean(), 1234)
-    assert.equal(s1:variance(), 0)
+    assert.is_nan(s1:variance())
     assert.equal(s1:stddev(), 0)
 
     local dump1 = s1:dump()
@@ -1429,5 +1429,108 @@ function testcase.mean()
         3,
     })
     assert.equal(s_small:mean(), 2.0)
+end
+
+function testcase.variance()
+    -- Test mean should return NaN if number of samples is less than 2
+    local s = create_samples_data({
+        1000,
+    })
+    assert.is_nan(s:variance())
+
+    -- Test with known variance case
+    s = create_samples_data({
+        1000,
+        2000,
+        3000,
+        4000,
+        5000,
+    })
+    -- For this dataset: mean = 3000
+    -- Variance = ((1000-3000)^2 + (2000-3000)^2 + (3000-3000)^2 + (4000-3000)^2 + (5000-3000)^2) / 4
+    -- = (4000000 + 1000000 + 0 + 1000000 + 4000000) / 4 = 10000000 / 4 = 2500000
+    assert.equal(s:variance(), 2500000)
+
+    -- Test with identical values (should be 0)
+    local s_identical = create_samples_data({
+        5000,
+        5000,
+        5000,
+        5000,
+    })
+    assert.equal(s_identical:variance(), 0.0)
+
+    -- Test with simple two-value case
+    local s_two = create_samples_data({
+        1000,
+        3000,
+    })
+    -- mean = 2000, variance = ((1000-2000)^2 + (3000-2000)^2) / 1 = 2000000
+    assert.equal(s_two:variance(), 2000000)
+
+    -- Test with three values
+    local s_three = create_samples_data({
+        2000,
+        4000,
+        6000,
+    })
+    -- mean = 4000, variance = ((2000-4000)^2 + (4000-4000)^2 + (6000-4000)^2) / 2
+    -- = (4000000 + 0 + 4000000) / 2 = 4000000
+    assert.equal(s_three:variance(), 4000000)
+
+    -- Test with four values
+    local s_four = create_samples_data({
+        1000,
+        3000,
+        5000,
+        7000,
+    })
+    -- mean = 4000
+    -- variance = ((1000-4000)^2 + (3000-4000)^2 + (5000-4000)^2 + (7000-4000)^2) / 3
+    -- = (9000000 + 1000000 + 1000000 + 9000000) / 3 = 20000000 / 3 ≈ 6666666.67
+    assert.less(math.abs(s_four:variance() - 6666666.67), 0.1)
+
+    -- Test with decimal values
+    local s_decimal = create_samples_data({
+        100,
+        150,
+        200,
+        250,
+        300,
+    })
+    -- mean = 200, variance = ((100-200)^2 + (150-200)^2 + (200-200)^2 + (250-200)^2 + (300-200)^2) / 4
+    -- = (10000 + 2500 + 0 + 2500 + 10000) / 4 = 25000 / 4 = 6250
+    assert.equal(s_decimal:variance(), 6250)
+
+    -- Test with large numbers
+    local s_large = create_samples_data({
+        1000000000,
+        2000000000,
+        3000000000,
+    })
+    -- mean = 2000000000
+    -- variance = ((1000000000-2000000000)^2 + (2000000000-2000000000)^2 + (3000000000-2000000000)^2) / 2
+    -- = (1e18 + 0 + 1e18) / 2 = 1e18
+    assert.equal(s_large:variance(), 1e18)
+
+    -- Test with small numbers
+    local s_small = create_samples_data({
+        1,
+        2,
+        3,
+    })
+    -- mean = 2, variance = ((1-2)^2 + (2-2)^2 + (3-2)^2) / 2 = (1 + 0 + 1) / 2 = 1
+    assert.equal(s_small:variance(), 1.0)
+
+    -- Test with alternating values
+    local s_alternating = create_samples_data({
+        1000,
+        9000,
+        1000,
+        9000,
+    })
+    -- mean = 5000, variance = 2*((1000-5000)^2) + 2*((9000-5000)^2) / 3
+    -- = 2*(16000000) + 2*(16000000) / 3 = 64000000 / 3 ≈ 21333333.33
+    assert.less(math.abs(s_alternating:variance() - 21333333.33), 0.1)
 end
 

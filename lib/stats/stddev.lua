@@ -20,7 +20,6 @@
 --  DEALINGS IN THE SOFTWARE.
 --
 local sqrt = math.sqrt
-local variance = require('measure.stats.variance')
 -- NaN value for error handling
 local NaN = 0 / 0
 
@@ -29,11 +28,7 @@ local NaN = 0 / 0
 --- @return number standard deviation value or NaN on error
 local function stddev(samples)
     -- Protect against nil input and other errors from variance module
-    local ok, var = pcall(variance, samples)
-    if not ok then
-        -- Re-throw the error to maintain compatibility with C implementation
-        error(var, 2)
-    end
+    local var = samples:variance()
 
     -- Check for NaN (NaN is not equal to itself in Lua)
     if var ~= var then

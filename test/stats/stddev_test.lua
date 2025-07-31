@@ -30,11 +30,11 @@ function testcase.known_data()
     })
     assert.equal(stddev(s_identical), 0.0)
 
-    -- Test with single value (should be 0)
+    -- Test with single value (should be NaN)
     local s_single = create_mock_samples({
         42000,
     })
-    assert.equal(stddev(s_single), 0.0)
+    assert.is_nan(stddev(s_single))
 end
 
 -- Test standard deviation calculation with simple cases

@@ -35,7 +35,7 @@ function testcase.single_sample()
     local result = stderr(s)
 
     assert.is_number(result)
-    assert.equal(result, 0.0) -- no error with single sample
+    assert.is_nan(result) -- no error with single sample
 end
 
 function testcase.identical_values()
@@ -89,8 +89,8 @@ function testcase.nan_conditions()
     local s, serr = samples(minimal_data)
     if s then
         local result = stderr(s)
-        -- With single sample, stderr should be 0.0
-        assert.equal(result, 0.0)
+        -- With single sample, stderr should be NaN
+        assert.is_nan(result)
     else
         -- If samples creation fails, verify the error
         assert.match(serr, 'invalid')
