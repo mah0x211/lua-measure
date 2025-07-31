@@ -20,7 +20,6 @@
 -- DEALINGS IN THE SOFTWARE.
 --
 -- Core C modules
-local mean = require('measure.stats.mean')
 local stddev = require('measure.stats.stddev')
 local variance = require('measure.stats.variance')
 
@@ -40,7 +39,7 @@ local throughput = require('measure.stats.throughput')
 --- @return table Summary statistics containing all key metrics
 local function summary(samples)
     return {
-        mean = mean(samples),
+        mean = samples:mean(),
         stddev = stddev(samples),
         stderr = stderr(samples),
         variance = variance(samples),

@@ -643,8 +643,8 @@ function testcase.statistical_methods_empty_samples()
     -- Test max should return NaN for empty samples
     assert.is_nan(s:max())
 
-    -- Test mean should return 0 for empty samples
-    assert.equal(s:mean(), 0)
+    -- Test mean should return NaN for empty samples
+    assert.is_nan(s:mean())
 
     -- Test variance should return 0 for empty samples
     assert.equal(s:variance(), 0)
@@ -988,7 +988,7 @@ function testcase.statistical_methods_comprehensive()
     local s = new_samples(nil, 10)
     assert.is_nan(s:min())
     assert.is_nan(s:max())
-    assert.equal(s:mean(), 0)
+    assert.is_nan(s:mean())
     assert.equal(s:variance(), 0)
     assert.equal(s:stddev(), 0)
     assert.equal(#s, 0)
@@ -1376,5 +1376,58 @@ function testcase.max()
         2000000000,
     })
     assert.equal(s_large:max(), 2000000000)
+end
+
+function testcase.mean()
+    -- Test mean should return NaN for empty samples
+    local s = new_samples()
+    assert.is_nan(s:mean())
+
+    -- Test with simple integer values
+    s = create_samples_data({
+        1000,
+        2000,
+        3000,
+        4000,
+        5000,
+    })
+    assert.equal(s:mean(), 3000.0) -- (1000+2000+3000+4000+5000)/5 = 3000
+
+    -- Test with single value
+    local s_single = create_samples_data({
+        42000,
+    })
+    assert.equal(s_single:mean(), 42000.0)
+
+    -- Test with two values
+    local s_two = create_samples_data({
+        1000,
+        3000,
+    })
+    assert.equal(s_two:mean(), 2000.0) -- (1000+3000)/2 = 2000
+
+    -- Test with decimal precision
+    local s_decimal = create_samples_data({
+        1500,
+        2500,
+        3500,
+    })
+    assert.equal(s_decimal:mean(), 2500.0) -- (1500+2500+3500)/3 = 2500
+
+    -- Test with large numbers
+    local s_large = create_samples_data({
+        1000000000,
+        2000000000,
+        3000000000,
+    })
+    assert.equal(s_large:mean(), 2000000000.0)
+
+    -- Test with very small numbers
+    local s_small = create_samples_data({
+        1,
+        2,
+        3,
+    })
+    assert.equal(s_small:mean(), 2.0)
 end
 

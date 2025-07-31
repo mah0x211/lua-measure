@@ -19,8 +19,6 @@
 -- FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 -- DEALINGS IN THE SOFTWARE.
 --
-local mean = require('measure.stats.mean')
-
 -- NaN value for error handling
 local NaN = 0 / 0
 
@@ -35,7 +33,7 @@ end
 --- @param samples measure.samples An instance of measure.samples
 --- @return number Throughput in operations per second, or NaN on error
 local function throughput(samples)
-    local mean_time_ns = mean(samples)
+    local mean_time_ns = samples:mean()
     if is_nan(mean_time_ns) or mean_time_ns <= 0 then
         return NaN
     end

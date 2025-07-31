@@ -25,7 +25,6 @@ local sqrt = math.sqrt
 local min = math.min
 local max = math.max
 local ceil = math.ceil
-local mean = require('measure.stats.mean')
 local stddev = require('measure.stats.stddev')
 local cv = require('measure.stats.cv')
 local quantile = require('measure.quantile')
@@ -202,7 +201,7 @@ local function confidence_interval(samples)
         return result
     end
 
-    local mean_val = mean(samples)
+    local mean_val = samples:mean()
     local stderr_val = calculate_stderr(samples)
     local cv_val = cv(samples)
     if is_nan(mean_val) or is_nan(stderr_val) then
