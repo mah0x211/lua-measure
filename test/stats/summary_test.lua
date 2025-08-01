@@ -4,7 +4,6 @@ local assert = require('assert')
 local summary = require('measure.stats.summary')
 
 -- Individual stats modules for consistency testing
-local stddev = require('measure.stats.stddev')
 local stderr = require('measure.stats.stderr')
 local cv = require('measure.stats.cv')
 local iqr = require('measure.stats.iqr')
@@ -111,7 +110,7 @@ function testcase.from_stats()
 
     -- test consistency with individual modules
     assert.equal(result.mean, s:mean())
-    assert.equal(result.stddev, stddev(s))
+    assert.equal(result.stddev, s:stddev())
     assert.equal(result.stderr, stderr(s))
     assert.equal(result.cv, cv(s))
     assert.equal(result.iqr, iqr(s))

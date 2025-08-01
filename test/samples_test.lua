@@ -649,8 +649,8 @@ function testcase.statistical_methods_empty_samples()
     -- Test variance should return NaN for empty samples
     assert.is_nan(s:variance())
 
-    -- Test stddev should return 0 for empty samples
-    assert.equal(s:stddev(), 0)
+    -- Test stddev should return NaN for empty samples
+    assert.is_nan(s:stddev())
 end
 
 function testcase.statistical_methods_basic()
@@ -696,9 +696,9 @@ function testcase.statistical_methods_single_sample()
     assert.is_number(s:stddev())
     assert.equal(#s, 1) -- Check count is correct
 
-    -- For single sample, variance=NaN and stddev=0
+    -- For single sample, variance and stddev should be NaN
     assert.is_nan(s:variance())
-    assert.equal(s:stddev(), 0)
+    assert.is_nan(s:stddev())
 end
 
 function testcase.statistical_methods_two_samples()
@@ -990,7 +990,7 @@ function testcase.statistical_methods_comprehensive()
     assert.is_nan(s:max())
     assert.is_nan(s:mean())
     assert.is_nan(s:variance())
-    assert.equal(s:stddev(), 0)
+    assert.is_nan(s:stddev())
     assert.equal(#s, 0)
 
     -- Test 2: Single sample - min == max == mean, variance and stddev should be 0
@@ -1003,7 +1003,7 @@ function testcase.statistical_methods_comprehensive()
     assert.is_number(s:max())
     assert.is_number(s:mean())
     assert.is_nan(s:variance())
-    assert.equal(s:stddev(), 0)
+    assert.is_nan(s:stddev())
     assert.equal(#s, 1)
 
     -- Test 3: Multiple samples - comprehensive statistical validation
@@ -1103,7 +1103,7 @@ function testcase.restore_statistical_edge_cases()
     assert.equal(s1:max(), 1234)
     assert.equal(s1:mean(), 1234)
     assert.is_nan(s1:variance())
-    assert.equal(s1:stddev(), 0)
+    assert.is_nan(s1:stddev())
 
     local dump1 = s1:dump()
     assert.equal(dump1.sum, 1234)
@@ -1534,3 +1534,91 @@ function testcase.variance()
     assert.less(math.abs(s_alternating:variance() - 21333333.33), 0.1)
 end
 
+function testcase.stddev()
+    -- Test with known variance case
+    local s = create_samples_data({
+        1000,
+        2000,
+        3000,
+        4000,
+        5000,
+    })
+    -- For this dataset: mean = 3000, variance = 2500000, stddev = sqrt(2500000) ≈ 1581.14
+    assert.less(math.abs(s:stddev() - 1581.14), 0.1)
+
+    -- Test with identical values (should be 0)
+    local s_identical = create_samples_data({
+        5000,
+        5000,
+        5000,
+        5000,
+    })
+    assert.equal(s_identical:stddev(), 0.0)
+
+    -- Test with single value (should be NaN)
+    local s_single = create_samples_data({
+        42000,
+    })
+    assert.is_nan(s_single:stddev())
+
+    -- Test with simple two-value case
+    local s_two = create_samples_data({
+        1000,
+        3000,
+    })
+    -- variance = ((1000-2000)^2 + (3000-2000)^2) / 1 = 2000000, stddev = sqrt(2000000) ≈ 1414.21
+    assert.less(math.abs(s_two:stddev() - 1414.21), 0.1)
+
+    -- Test with three values
+    local s_three = create_samples_data({
+        2000,
+        4000,
+        6000,
+    })
+    -- mean = 4000, variance = ((2000-4000)^2 + (4000-4000)^2 + (6000-4000)^2) / 2 = 4000000, stddev = 2000
+    assert.less(math.abs(s_three:stddev() - 2000.0), 0.1)
+
+    -- Test with large numbers
+    local s_large = create_samples_data({
+        1000000000,
+        2000000000,
+        3000000000,
+    })
+    assert.greater(s_large:stddev(), 0)
+    assert.is_number(s_large:stddev())
+
+    -- Test with small numbers
+    local s_small = create_samples_data({
+        1,
+        2,
+        3,
+    })
+    assert.equal(s_small:stddev(), 1.0)
+
+    -- Test with very large variation
+    local large_var_samples = create_samples_data({
+        1,
+        1000000000,
+        1,
+        1000000000,
+        1,
+    })
+    assert.is_number(large_var_samples:stddev())
+    assert.greater(large_var_samples:stddev(), 0)
+
+    -- Test with patterns that might stress the variance calculation
+    local pattern_samples = create_samples_data({
+        100,
+        200,
+        300,
+        400,
+        500,
+        600,
+        700,
+        800,
+        900,
+        1000,
+    })
+    assert.is_number(pattern_samples:stddev())
+    assert.greater(pattern_samples:stddev(), 0)
+end

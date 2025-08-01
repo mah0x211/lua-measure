@@ -3,7 +3,6 @@ local testcase = require('testcase')
 local assert = require('assert')
 local stderr = require('measure.stats.stderr')
 local samples = require('measure.samples')
-local stddev = require('measure.stats.stddev')
 
 local mock_samples = require('./test/helpers/mock_samples')
 
@@ -130,7 +129,7 @@ function testcase.from_stats()
     })
 
     local result = stderr(s)
-    local stddev_val = stddev(s)
+    local stddev_val = s:stddev()
     local expected = stddev_val / math.sqrt(4)
 
     assert.is_number(result)
