@@ -23,21 +23,6 @@
 #include "measure_samples.h"
 #include "stats/common.h"
 
-static int percentile_lua(lua_State *L)
-{
-    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
-    lua_Integer p        = luaL_checkinteger(L, 2);
-    double result        = NAN;
-
-    if (p < 0 || p > 100) {
-        luaL_error(L, "percentile must be between 0 and 100, got %d", p);
-    } else if (s->count) {
-        result = stats_percentile(s, (double)p);
-    }
-    lua_pushnumber(L, result);
-    return 1;
-}
-
 static int dump_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
@@ -106,6 +91,34 @@ static int dump_lua(lua_State *L)
     lua_pushinteger(L, s->base_kb);
     lua_setfield(L, 2, "base_kb");
 
+    return 1;
+}
+
+static int percentile_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    lua_Integer p        = luaL_checkinteger(L, 2);
+    double result        = NAN;
+
+    if (p < 0 || p > 100) {
+        luaL_error(L, "percentile must be between 0 and 100, got %d", p);
+    } else if (s->count) {
+        result = stats_percentile(s, (double)p);
+    }
+    lua_pushnumber(L, result);
+    return 1;
+}
+
+static int stderr_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    if (s->count < 2) {
+        lua_pushnumber(L, NAN);
+    } else {
+        // stderr = stddev / sqrt(count)
+        // stdev = sqrt(M2 / (count - 1))
+        lua_pushnumber(L, sqrt(s->M2 / (s->count - 1)) / sqrt(s->count));
+    }
     return 1;
 }
 
@@ -509,11 +522,12 @@ LUALIB_API int luaopen_measure_samples(lua_State *L)
             {"min",        min_lua       },
             {"max",        max_lua       },
             {"mean",       mean_lua      },
+            // calculate statistics
             {"variance",   variance_lua  },
             {"stddev",     stddev_lua    },
-            {"dump",       dump_lua      },
-            // calculate statistics
+            {"stderr",     stderr_lua    },
             {"percentile", percentile_lua},
+            {"dump",       dump_lua      },
             {NULL,         NULL          }
         };
 
