@@ -113,7 +113,7 @@ static int stddev_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
     if (s->count < 2) {
-        lua_pushnumber(L, 0.0);
+        lua_pushnumber(L, NAN);
     } else {
         lua_pushnumber(L, sqrt(s->M2 / (s->count - 1)));
     }

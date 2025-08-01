@@ -20,7 +20,6 @@
 -- DEALINGS IN THE SOFTWARE.
 --
 local sqrt = math.sqrt
-local stddev = require('measure.stats.stddev')
 
 -- NaN value for error handling
 local NaN = 0 / 0
@@ -36,7 +35,7 @@ end
 --- @param samples measure.samples An instance of measure.samples
 --- @return number Standard error, or NaN on error
 local function stderr(samples)
-    local std = stddev(samples)
+    local std = samples:stddev()
     if is_nan(std) then
         return NaN
     end

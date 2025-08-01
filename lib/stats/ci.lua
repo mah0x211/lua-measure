@@ -25,7 +25,6 @@ local sqrt = math.sqrt
 local min = math.min
 local max = math.max
 local ceil = math.ceil
-local stddev = require('measure.stats.stddev')
 local cv = require('measure.stats.cv')
 local quantile = require('measure.quantile')
 
@@ -50,7 +49,7 @@ end
 
 -- Helper function to calculate standard error
 local function calculate_stderr(samples)
-    local std = stddev(samples)
+    local std = samples:stddev()
     if is_nan(std) then
         return NaN
     end

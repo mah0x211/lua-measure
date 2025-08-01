@@ -20,8 +20,6 @@
 -- DEALINGS IN THE SOFTWARE.
 --
 -- Core C modules
-local stddev = require('measure.stats.stddev')
-
 -- Lua modules
 local median = require('measure.stats.median')
 local p25 = require('measure.stats.p25')
@@ -39,7 +37,7 @@ local throughput = require('measure.stats.throughput')
 local function summary(samples)
     return {
         mean = samples:mean(),
-        stddev = stddev(samples),
+        stddev = samples:stddev(),
         stderr = stderr(samples),
         variance = samples:variance(),
         cv = cv(samples),
