@@ -26,7 +26,6 @@ local p25 = require('measure.stats.p25')
 local p75 = require('measure.stats.p75')
 local p95 = require('measure.stats.p95')
 local p99 = require('measure.stats.p99')
-local stderr = require('measure.stats.stderr')
 local cv = require('measure.stats.cv')
 local iqr = require('measure.stats.iqr')
 local throughput = require('measure.stats.throughput')
@@ -38,7 +37,7 @@ local function summary(samples)
     return {
         mean = samples:mean(),
         stddev = samples:stddev(),
-        stderr = stderr(samples),
+        stderr = samples:stderr(),
         variance = samples:variance(),
         cv = cv(samples),
         iqr = iqr(samples),
