@@ -1535,8 +1535,14 @@ function testcase.variance()
 end
 
 function testcase.stddev()
-    -- Test with known variance case
+    -- Test mean should return NaN if number of samples is less than 2
     local s = create_samples_data({
+        1000,
+    })
+    assert.is_nan(s:stddev())
+
+    -- Test with known variance case
+    s = create_samples_data({
         1000,
         2000,
         3000,
@@ -1622,3 +1628,40 @@ function testcase.stddev()
     assert.is_number(pattern_samples:stddev())
     assert.greater(pattern_samples:stddev(), 0)
 end
+
+function testcase.stderr()
+    -- Test mean should return NaN if number of samples is less than 2
+    local s = create_samples_data({
+        1000,
+    })
+    assert.is_nan(s:stderr())
+
+    -- test standard error calculation
+    s = create_samples_data({
+        1000,
+        2000,
+        3000,
+        4000,
+        5000,
+    })
+    assert.is_number(s:stderr())
+    assert.greater(s:stderr(), 0) -- stderr should be positive
+
+    -- test with single sample (stderr should be 0)
+    s = create_samples_data({
+        1000,
+    })
+    assert.is_number(s:stderr())
+    assert.is_nan(s:stderr()) -- no error with single sample
+
+    -- test with identical values (stderr should be 0)
+    s = create_samples_data({
+        1000,
+        1000,
+        1000,
+        1000,
+    })
+    assert.is_number(s:stderr())
+    assert.equal(s:stderr(), 0.0) -- no variation
+end
+
