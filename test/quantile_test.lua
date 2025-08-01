@@ -1,10 +1,9 @@
 local testcase = require('testcase')
 local assert = require('assert')
+local quantile = require('measure.quantile')
 
 -- Test measure.quantile module (C function-based API)
 function testcase.quantile_basic_call()
-    local quantile = require('measure.quantile')
-
     -- Test 95% confidence level (should return ~1.96)
     local z95 = quantile(0.95)
     assert.is_number(z95)
@@ -22,8 +21,6 @@ function testcase.quantile_basic_call()
 end
 
 function testcase.quantile_precision_test()
-    local quantile = require('measure.quantile')
-
     -- Test 97% confidence level (ChatGPT o3 example)
     local z97 = quantile(0.97)
     assert.is_number(z97)
@@ -40,8 +37,6 @@ function testcase.quantile_precision_test()
 end
 
 function testcase.quantile_edge_cases()
-    local quantile = require('measure.quantile')
-
     -- Test values close to boundaries (but not exactly at them)
     local z_low = quantile(0.001)
     assert.is_number(z_low)
@@ -58,8 +53,6 @@ function testcase.quantile_edge_cases()
 end
 
 function testcase.quantile_symmetry_test()
-    local quantile = require('measure.quantile')
-
     -- Test symmetry: quantile(p) should be approximately -quantile(1-p) for lower tail
     -- This tests the mathematical property of the normal distribution
     local p_values = {
@@ -83,8 +76,6 @@ function testcase.quantile_symmetry_test()
 end
 
 function testcase.quantile_error_handling()
-    local quantile = require('measure.quantile')
-
     -- Test with no arguments
     assert.throws(function()
         quantile()
@@ -115,8 +106,6 @@ function testcase.quantile_error_handling()
 end
 
 function testcase.quantile_boundary_values()
-    local quantile = require('measure.quantile')
-
     -- Test boundary values that should return NaN
     local result_zero = quantile(0.0)
     assert.is_true(result_zero ~= result_zero) -- NaN check
@@ -134,8 +123,6 @@ function testcase.quantile_boundary_values()
 end
 
 function testcase.quantile_module_type()
-    local quantile = require('measure.quantile')
-
     -- The module should be a function, not a table
     assert.is_function(quantile)
 
@@ -145,7 +132,6 @@ function testcase.quantile_module_type()
 end
 
 function testcase.quantile_consistency_test()
-    local quantile = require('measure.quantile')
 
     -- Test that multiple calls with same argument return same result
     local confidence = 0.95
@@ -159,8 +145,6 @@ function testcase.quantile_consistency_test()
 end
 
 function testcase.quantile_ordering_test()
-    local quantile = require('measure.quantile')
-
     -- Test that z-values increase with confidence level
     local confidences = {
         0.50,
@@ -186,8 +170,6 @@ function testcase.quantile_ordering_test()
 end
 
 function testcase.quantile_extreme_precision()
-    local quantile = require('measure.quantile')
-
     -- Test with values very close to 0.5 (around the center)
     local z_5001 = quantile(0.5001)
     local z_4999 = quantile(0.4999)

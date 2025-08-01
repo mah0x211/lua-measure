@@ -20,12 +20,6 @@
 -- DEALINGS IN THE SOFTWARE.
 --
 -- Core C modules
-local mean = require('measure.stats.mean')
-local min = require('measure.stats.min')
-local max = require('measure.stats.max')
-local stddev = require('measure.stats.stddev')
-local variance = require('measure.stats.variance')
-
 -- Lua modules
 local median = require('measure.stats.median')
 local p25 = require('measure.stats.p25')
@@ -42,14 +36,14 @@ local throughput = require('measure.stats.throughput')
 --- @return table Summary statistics containing all key metrics
 local function summary(samples)
     return {
-        mean = mean(samples),
-        stddev = stddev(samples),
+        mean = samples:mean(),
+        stddev = samples:stddev(),
         stderr = stderr(samples),
-        variance = variance(samples),
+        variance = samples:variance(),
         cv = cv(samples),
         iqr = iqr(samples),
-        min = min(samples),
-        max = max(samples),
+        min = samples:min(),
+        max = samples:max(),
         p25 = p25(samples),
         p50 = median(samples),
         p75 = p75(samples),

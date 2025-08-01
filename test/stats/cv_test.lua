@@ -3,8 +3,6 @@ local testcase = require('testcase')
 local assert = require('assert')
 local cv = require('measure.stats.cv')
 local samples = require('measure.samples')
-local mean = require('measure.stats.mean')
-local stddev = require('measure.stats.stddev')
 
 local mock_samples = require('./test/helpers/mock_samples')
 
@@ -131,8 +129,8 @@ function testcase.from_stats()
     })
 
     local result = cv(s)
-    local mean_val = mean(s)
-    local stddev_val = stddev(s)
+    local mean_val = s:mean()
+    local stddev_val = s:stddev()
 
     assert.is_number(result)
     assert.equal(result, stddev_val / mean_val)
