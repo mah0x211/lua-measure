@@ -4,13 +4,9 @@ local assert = require('assert')
 local summary = require('measure.stats.summary')
 
 -- Individual stats modules for consistency testing
-local mean = require('measure.stats.mean')
-local stddev = require('measure.stats.stddev')
 local stderr = require('measure.stats.stderr')
 local cv = require('measure.stats.cv')
 local iqr = require('measure.stats.iqr')
-local min = require('measure.stats.min')
-local max = require('measure.stats.max')
 local throughput = require('measure.stats.throughput')
 
 local mock_samples = require('./test/helpers/mock_samples')
@@ -69,7 +65,7 @@ function testcase.single_sample()
     assert.equal(result.min, 1000)
     assert.equal(result.max, 1000)
     assert.equal(result.p50, 1000)
-    assert.equal(result.stderr, 0.0)
+    assert.is_nan(result.stderr)
     assert.equal(result.iqr, 0.0)
 end
 
@@ -113,13 +109,13 @@ function testcase.from_stats()
     assert.is_number(result.throughput)
 
     -- test consistency with individual modules
-    assert.equal(result.mean, mean(s))
-    assert.equal(result.stddev, stddev(s))
+    assert.equal(result.mean, s:mean())
+    assert.equal(result.stddev, s:stddev())
     assert.equal(result.stderr, stderr(s))
     assert.equal(result.cv, cv(s))
     assert.equal(result.iqr, iqr(s))
-    assert.equal(result.min, min(s))
-    assert.equal(result.max, max(s))
+    assert.equal(result.min, 1000) -- minimum value
+    assert.equal(result.max, 3000) -- maximum value
     assert.equal(result.throughput, throughput(s))
 end
 
@@ -129,9 +125,9 @@ function testcase.nan_handling()
         1000,
     })
 
-    -- stderr should be 0 for single sample
-    assert.equal(stderr(s_single), 0.0)
+    -- stderr should be NaN for single sample
+    assert.is_nan(stderr(s_single))
 
-    -- cv should be 0 for single sample (stddev=0)
-    assert.equal(cv(s_single), 0.0)
+    -- cv should be NaN for single sample (stddev=0)
+    assert.is_nan(cv(s_single))
 end

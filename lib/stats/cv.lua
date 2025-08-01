@@ -19,8 +19,6 @@
 -- FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 -- DEALINGS IN THE SOFTWARE.
 --
-local stddev = require('measure.stats.stddev')
-local mean = require('measure.stats.mean')
 -- NaN value for error handling
 local NaN = 0 / 0
 
@@ -35,8 +33,8 @@ end
 --- @param samples measure.samples An instance of measure.samples
 --- @return number CV as stddev/mean, or NaN on error
 local function cv(samples)
-    local std = stddev(samples)
-    local mean_val = mean(samples)
+    local std = samples:stddev()
+    local mean_val = samples:mean()
 
     if is_nan(std) or is_nan(mean_val) or mean_val == 0.0 then
         return NaN
