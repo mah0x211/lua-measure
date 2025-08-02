@@ -2,8 +2,9 @@ local testcase = require('testcase')
 local assert = require('assert')
 local quantile = require('measure.quantile')
 
--- Test measure.quantile module (C function-based API)
-function testcase.quantile_basic_call()
+-- Basic functionality tests
+
+function testcase.basic()
     -- Test 95% confidence level (should return ~1.96)
     local z95 = quantile(0.95)
     assert.is_number(z95)
@@ -18,9 +19,7 @@ function testcase.quantile_basic_call()
     local z90 = quantile(0.90)
     assert.is_number(z90)
     assert.is_true(math.abs(z90 - 1.6448536269515) < 1e-10)
-end
 
-function testcase.quantile_precision_test()
     -- Test 97% confidence level (ChatGPT o3 example)
     local z97 = quantile(0.97)
     assert.is_number(z97)
@@ -36,7 +35,9 @@ function testcase.quantile_precision_test()
     assert.is_true(math.abs(z98 - 2.3263478740409) < 1e-10)
 end
 
-function testcase.quantile_edge_cases()
+-- Boundary values and edge cases
+
+function testcase.boundary_values()
     -- Test values close to boundaries (but not exactly at them)
     local z_low = quantile(0.001)
     assert.is_number(z_low)
@@ -50,32 +51,26 @@ function testcase.quantile_edge_cases()
     local z_mid = quantile(0.5)
     assert.is_number(z_mid)
     assert.is_true(z_mid > 0.6 and z_mid < 0.7) -- Should be around 0.67
+
+    -- Test boundary values that should return NaN
+    local result_zero = quantile(0.0)
+    assert.is_true(result_zero ~= result_zero) -- NaN check
+
+    local result_one = quantile(1.0)
+    assert.is_true(result_one ~= result_one) -- NaN check
+
+    -- Test negative values
+    local result_negative = quantile(-0.1)
+    assert.is_true(result_negative ~= result_negative) -- NaN check
+
+    -- Test values greater than 1
+    local result_over_one = quantile(1.1)
+    assert.is_true(result_over_one ~= result_over_one) -- NaN check
 end
 
-function testcase.quantile_symmetry_test()
-    -- Test symmetry: quantile(p) should be approximately -quantile(1-p) for lower tail
-    -- This tests the mathematical property of the normal distribution
-    local p_values = {
-        0.05,
-        0.1,
-        0.25,
-        0.4,
-    }
+-- Error handling tests
 
-    for _, p in ipairs(p_values) do
-        local z_low = quantile(p)
-        local z_high = quantile(1 - p)
-
-        -- Due to the way confidence intervals work, this relationship is different
-        -- For confidence intervals: quantile(p) gives the (1+p)/2 quantile of standard normal
-        -- So we test the actual mathematical relationship
-        assert.is_number(z_low)
-        assert.is_number(z_high)
-        assert.is_true(z_low < z_high) -- Higher confidence should give larger z-value
-    end
-end
-
-function testcase.quantile_error_handling()
+function testcase.error_handling()
     -- Test with no arguments
     assert.throws(function()
         quantile()
@@ -105,33 +100,29 @@ function testcase.quantile_error_handling()
     assert.is_number(result)
 end
 
-function testcase.quantile_boundary_values()
-    -- Test boundary values that should return NaN
-    local result_zero = quantile(0.0)
-    assert.is_true(result_zero ~= result_zero) -- NaN check
+-- Mathematical properties tests
 
-    local result_one = quantile(1.0)
-    assert.is_true(result_one ~= result_one) -- NaN check
+function testcase.mathematical_properties()
+    -- Test symmetry: quantile(p) should be approximately -quantile(1-p) for lower tail
+    -- This tests the mathematical property of the normal distribution
+    local p_values = {
+        0.05,
+        0.1,
+        0.25,
+        0.4,
+    }
 
-    -- Test negative values
-    local result_negative = quantile(-0.1)
-    assert.is_true(result_negative ~= result_negative) -- NaN check
+    for _, p in ipairs(p_values) do
+        local z_low = quantile(p)
+        local z_high = quantile(1 - p)
 
-    -- Test values greater than 1
-    local result_over_one = quantile(1.1)
-    assert.is_true(result_over_one ~= result_over_one) -- NaN check
-end
-
-function testcase.quantile_module_type()
-    -- The module should be a function, not a table
-    assert.is_function(quantile)
-
-    -- Test that it's callable
-    local result = quantile(0.95)
-    assert.is_number(result)
-end
-
-function testcase.quantile_consistency_test()
+        -- Due to the way confidence intervals work, this relationship is different
+        -- For confidence intervals: quantile(p) gives the (1+p)/2 quantile of standard normal
+        -- So we test the actual mathematical relationship
+        assert.is_number(z_low)
+        assert.is_number(z_high)
+        assert.is_true(z_low < z_high) -- Higher confidence should give larger z-value
+    end
 
     -- Test that multiple calls with same argument return same result
     local confidence = 0.95
@@ -142,9 +133,7 @@ function testcase.quantile_consistency_test()
     assert.equal(z1, z2)
     assert.equal(z2, z3)
     assert.equal(z1, z3)
-end
 
-function testcase.quantile_ordering_test()
     -- Test that z-values increase with confidence level
     local confidences = {
         0.50,
@@ -167,9 +156,7 @@ function testcase.quantile_ordering_test()
         end
         prev_z = z
     end
-end
 
-function testcase.quantile_extreme_precision()
     -- Test with values very close to 0.5 (around the center)
     local z_5001 = quantile(0.5001)
     local z_4999 = quantile(0.4999)
@@ -181,4 +168,15 @@ function testcase.quantile_extreme_precision()
     assert.is_true(z_4999 > 0)
     -- 50.01% should give slightly larger z than 49.99%
     assert.is_true(z_5001 > z_4999)
+end
+
+-- Module type tests
+
+function testcase.module_type()
+    -- The module should be a function, not a table
+    assert.is_function(quantile)
+
+    -- Test that it's callable
+    local result = quantile(0.95)
+    assert.is_number(result)
 end
