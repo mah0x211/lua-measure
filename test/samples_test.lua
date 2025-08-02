@@ -1432,7 +1432,7 @@ function testcase.mean()
 end
 
 function testcase.variance()
-    -- Test mean should return NaN if number of samples is less than 2
+    -- Test variance should return NaN if number of samples is less than 2
     local s = create_samples_data({
         1000,
     })
@@ -1535,7 +1535,7 @@ function testcase.variance()
 end
 
 function testcase.stddev()
-    -- Test mean should return NaN if number of samples is less than 2
+    -- Test stddev should return NaN if number of samples is less than 2
     local s = create_samples_data({
         1000,
     })
@@ -1630,7 +1630,7 @@ function testcase.stddev()
 end
 
 function testcase.stderr()
-    -- Test mean should return NaN if number of samples is less than 2
+    -- Test stderr should return NaN if number of samples is less than 2
     local s = create_samples_data({
         1000,
     })
@@ -1666,7 +1666,7 @@ function testcase.stderr()
 end
 
 function testcase.cv()
-    -- Test mean should return NaN if number of samples is less than 2
+    -- Test coefficient of variation should return NaN if number of samples is less than 2
     local s = create_samples_data({
         1000,
     })
@@ -1703,3 +1703,46 @@ function testcase.cv()
     assert.is_nan(s:cv())
 end
 
+function testcase.throughput()
+    -- Test throughput returns NaN for empty samples
+    local s = new_samples()
+    assert.is_nan(s:throughput())
+
+    -- test throughput calculation with 1 second mean time
+    s = create_samples_data({
+        1000000000,
+        1000000000,
+        1000000000,
+    }) -- 1 second each
+    assert.is_number(s:throughput())
+    assert.equal(s:throughput(), 1.0) -- 1 operation per second
+
+    -- test throughput with 0.5 second mean time
+    s = create_samples_data({
+        500000000,
+        500000000,
+        500000000,
+    }) -- 0.5 second each
+    assert.is_number(s:throughput())
+    assert.equal(s:throughput(), 2.0) -- 2 operations per second
+
+    -- test with zero time values (should return NaN)
+    s = create_samples_data({
+        0,
+        0,
+        0,
+    })
+    -- check for NaN
+    assert.is_nan(s:throughput())
+
+    -- test throughput calculation (ops/sec) with varying times
+    s = create_samples_data({
+        1000000,
+        2000000,
+        3000000,
+    }) -- 1ms, 2ms, 3ms average
+    -- mean = 2ms = 2e6 ns = 0.002s, throughput = 1/0.002 = 500 ops/sec
+    assert.is_number(s:throughput())
+    assert.greater(s:throughput(), 450)
+    assert.less(s:throughput(), 550)
+end
