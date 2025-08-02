@@ -3,7 +3,9 @@ local testcase = require('testcase')
 local assert = require('assert')
 local new_describe = require('measure.describe')
 
-function testcase.new_describe()
+-- Constructor tests
+
+function testcase.constructor()
     -- test create valid describe instance
     local desc = assert(new_describe('test benchmark'))
     assert.equal(tostring(desc), 'measure.describe "test benchmark"')
@@ -20,7 +22,9 @@ function testcase.new_describe()
 
     -- test tostring
     assert.equal(tostring(desc), 'measure.describe "test benchmark"')
+end
 
+function testcase.constructor_invalid()
     -- test invalid name type
     local d, err = new_describe(123)
     assert.is_nil(d)
@@ -32,7 +36,9 @@ function testcase.new_describe()
     assert.equal(err, 'namefn must be a function or nil, got "string"')
 end
 
-function testcase.options_basic_setting()
+-- Options tests
+
+function testcase.options()
     local desc = assert(new_describe('test'))
 
     -- test valid options
@@ -66,14 +72,11 @@ function testcase.options_basic_setting()
     ok, err = desc:options('not a table')
     assert.is_false(ok)
     assert.equal(err, 'argument must be a table')
-end
-
-function testcase.options_definition_order()
-    local desc = assert(new_describe('test'))
 
     -- test cannot define twice
+    desc = assert(new_describe('test'))
     assert(desc:options({}))
-    local ok, err = desc:options({})
+    ok, err = desc:options({})
     assert.is_false(ok)
     assert.equal(err, 'options cannot be defined twice')
 
@@ -114,7 +117,7 @@ function testcase.options_definition_order()
                  'options must be defined before setup(), setup_once(), run() or run_with_timer()')
 end
 
-function testcase.options_context_validation()
+function testcase.options_context()
     -- test invalid context type
     local desc = assert(new_describe('test'))
     local ok, err = desc:options({
@@ -124,7 +127,7 @@ function testcase.options_context_validation()
     assert.equal(err, 'options.context must be a table or a function')
 end
 
-function testcase.options_confidence_level_validation()
+function testcase.options_confidence_level()
     -- test invalid confidence_level type
     local desc = assert(new_describe('test'))
     local ok, err = desc:options({
@@ -153,7 +156,7 @@ function testcase.options_confidence_level_validation()
                  'options.confidence_level must be a number between 0 and 100')
 end
 
-function testcase.options_warmup_validation()
+function testcase.options_warmup()
     -- test invalid warmup type
     local desc = assert(new_describe('test'))
     local ok, err = desc:options({
@@ -203,7 +206,7 @@ function testcase.options_warmup_validation()
     assert.equal(err, 'options.warmup must be a number between 0 and 5')
 end
 
-function testcase.options_rciw_validation()
+function testcase.options_rciw()
     -- test invalid rciw type
     local desc = assert(new_describe('test'))
     local ok, err = desc:options({
@@ -229,7 +232,7 @@ function testcase.options_rciw_validation()
     assert.equal(err, 'options.rciw must be a number between 0 and 100')
 end
 
-function testcase.options_gc_step_validation()
+function testcase.options_gc_step()
     -- test valid gc_step values
     local desc = assert(new_describe('test'))
     local ok, err = desc:options({
@@ -291,6 +294,8 @@ function testcase.options_gc_step_validation()
     assert.is_false(ok)
     assert.equal(err, 'options.gc_step must be an integer')
 end
+
+-- Method tests
 
 function testcase.setup()
     local desc = assert(new_describe('test'))
@@ -502,7 +507,9 @@ function testcase.teardown()
     assert.equal(err, 'must be defined after run() or run_with_timer()')
 end
 
-function testcase.complete_workflow()
+-- Workflow tests
+
+function testcase.workflow()
     -- test typical workflow with options, setup, run, teardown
     local desc = assert(new_describe('complete test'))
     assert(desc:options({
