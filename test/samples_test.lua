@@ -1665,3 +1665,41 @@ function testcase.stderr()
     assert.equal(s:stderr(), 0.0) -- no variation
 end
 
+function testcase.cv()
+    -- Test mean should return NaN if number of samples is less than 2
+    local s = create_samples_data({
+        1000,
+    })
+    assert.is_nan(s:cv())
+
+    -- test coefficient of variation calculation
+    s = create_samples_data({
+        1000,
+        2000,
+        3000,
+        4000,
+        5000,
+    })
+    assert.is_number(s:cv())
+    assert.greater(s:cv(), 0) -- CV should be positive
+
+    -- test with identical values (CV should be 0)
+    s = create_samples_data({
+        1000,
+        1000,
+        1000,
+        1000,
+    })
+    assert.is_number(s:cv())
+    assert.equal(s:cv(), 0.0) -- no variation
+
+    -- test with zero mean (should return NaN)
+    s = create_samples_data({
+        0,
+        0,
+        0,
+    })
+    -- check for NaN
+    assert.is_nan(s:cv())
+end
+
