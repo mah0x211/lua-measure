@@ -94,6 +94,21 @@ static int dump_lua(lua_State *L)
     return 1;
 }
 
+static int mad_lua(lua_State *L)
+{
+    measure_samples_t *samples = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+
+    // Check if there are enough samples for MAD calculation
+    if (samples->count < MIN_SAMPLES_MAD_OUTLIER) {
+        lua_pushnumber(L, NAN);
+    } else {
+        // Calculate Median Absolute Deviation (MAD)
+        double mad = stats_mad(samples);
+        lua_pushnumber(L, mad);
+    }
+    return 1;
+}
+
 static int throughput_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
@@ -567,6 +582,7 @@ LUALIB_API int luaopen_measure_samples(lua_State *L)
             {"cv",         cv_lua        },
             {"percentile", percentile_lua},
             {"throughput", throughput_lua},
+            {"mad",        mad_lua       },
             {"dump",       dump_lua      },
             {NULL,         NULL          }
         };
