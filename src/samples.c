@@ -109,15 +109,35 @@ static int percentile_lua(lua_State *L)
     return 1;
 }
 
-static int stderr_lua(lua_State *L)
+// Calculate standard deviation using Welford's method
+// stddev = sqrt(M2 / (count - 1))
+// where M2 is the sum of squares about the mean
+#define calc_stddev(s) (sqrt((s)->M2 / ((s)->count - 1)))
+
+static int cv_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+
+    // Coefficient of Variation (CV) = standard deviation / mean
+    // If count is less than 2, return NaN
     if (s->count < 2) {
         lua_pushnumber(L, NAN);
     } else {
-        // stderr = stddev / sqrt(count)
-        // stdev = sqrt(M2 / (count - 1))
-        lua_pushnumber(L, sqrt(s->M2 / (s->count - 1)) / sqrt(s->count));
+        lua_pushnumber(L, calc_stddev(s) / s->mean);
+    }
+    return 1;
+}
+
+static int stderr_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+
+    // Standard Error of the Mean (SEM) = standard deviation / sqrt(count)
+    // If count is less than 2, return NaN
+    if (s->count < 2) {
+        lua_pushnumber(L, NAN);
+    } else {
+        lua_pushnumber(L, calc_stddev(s) / sqrt(s->count));
     }
     return 1;
 }
@@ -125,13 +145,16 @@ static int stderr_lua(lua_State *L)
 static int stddev_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+
     if (s->count < 2) {
         lua_pushnumber(L, NAN);
     } else {
-        lua_pushnumber(L, sqrt(s->M2 / (s->count - 1)));
+        lua_pushnumber(L, calc_stddev(s));
     }
     return 1;
 }
+
+#undef calc_stddev
 
 static int variance_lua(lua_State *L)
 {
@@ -526,6 +549,7 @@ LUALIB_API int luaopen_measure_samples(lua_State *L)
             {"variance",   variance_lua  },
             {"stddev",     stddev_lua    },
             {"stderr",     stderr_lua    },
+            {"cv",         cv_lua        },
             {"percentile", percentile_lua},
             {"dump",       dump_lua      },
             {NULL,         NULL          }

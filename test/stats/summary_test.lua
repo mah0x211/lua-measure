@@ -4,7 +4,6 @@ local assert = require('assert')
 local summary = require('measure.stats.summary')
 
 -- Individual stats modules for consistency testing
-local cv = require('measure.stats.cv')
 local iqr = require('measure.stats.iqr')
 local throughput = require('measure.stats.throughput')
 
@@ -111,7 +110,7 @@ function testcase.from_stats()
     assert.equal(result.mean, s:mean())
     assert.equal(result.stddev, s:stddev())
     assert.equal(result.stderr, s:stderr())
-    assert.equal(result.cv, cv(s))
+    assert.equal(result.cv, s:cv())
     assert.equal(result.iqr, iqr(s))
     assert.equal(result.min, 1000) -- minimum value
     assert.equal(result.max, 3000) -- maximum value
@@ -128,5 +127,5 @@ function testcase.nan_handling()
     assert.is_nan(s_single:stderr())
 
     -- cv should be NaN for single sample (stddev=0)
-    assert.is_nan(cv(s_single))
+    assert.is_nan(s_single:cv())
 end
