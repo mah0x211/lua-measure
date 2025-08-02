@@ -94,6 +94,21 @@ static int dump_lua(lua_State *L)
     return 1;
 }
 
+static int throughput_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+
+    if (s->count == 0) {
+        lua_pushnumber(L, NAN);
+    } else {
+        // Convert nanoseconds to seconds and calculate operations per second
+        double mean_s = s->mean / 1e9;
+        // If mean time is too small, set throughput to NaN
+        lua_pushnumber(L, (mean_s <= STATS_EPSILON) ? NAN : 1.0 / mean_s);
+    }
+    return 1;
+}
+
 static int percentile_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
@@ -551,6 +566,7 @@ LUALIB_API int luaopen_measure_samples(lua_State *L)
             {"stderr",     stderr_lua    },
             {"cv",         cv_lua        },
             {"percentile", percentile_lua},
+            {"throughput", throughput_lua},
             {"dump",       dump_lua      },
             {NULL,         NULL          }
         };

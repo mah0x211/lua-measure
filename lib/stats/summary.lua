@@ -27,7 +27,6 @@ local p75 = require('measure.stats.p75')
 local p95 = require('measure.stats.p95')
 local p99 = require('measure.stats.p99')
 local iqr = require('measure.stats.iqr')
-local throughput = require('measure.stats.throughput')
 
 --- Calculates comprehensive summary statistics from samples
 --- @param samples measure.samples An instance of measure.samples
@@ -47,7 +46,7 @@ local function summary(samples)
         p75 = p75(samples),
         p95 = p95(samples),
         p99 = p99(samples),
-        throughput = throughput(samples),
+        throughput = samples:throughput(),
     }
 end
 

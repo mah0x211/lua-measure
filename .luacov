@@ -11,7 +11,6 @@ modules = {
     ["measure.realpath"] = "lib/realpath.lua",
     ["measure.registry"] = "lib/registry.lua",
     ["measure.spec"] = "lib/spec.lua",
-    ["measure.stats.cv"] = "lib/stats/cv.lua",
     ["measure.stats.ci"] = "lib/stats/ci.lua",
     ["measure.stats.iqr"] = "lib/stats/iqr.lua",
     ["measure.stats.median"] = "lib/stats/median.lua",
@@ -20,5 +19,4 @@ modules = {
     ["measure.stats.p95"] = "lib/stats/p95.lua",
     ["measure.stats.p99"] = "lib/stats/p99.lua",
     ["measure.stats.summary"] = "lib/stats/summary.lua",
-    ["measure.stats.throughput"] = "lib/stats/throughput.lua",
 }
