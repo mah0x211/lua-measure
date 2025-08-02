@@ -1746,3 +1746,35 @@ function testcase.throughput()
     assert.greater(s:throughput(), 450)
     assert.less(s:throughput(), 550)
 end
+
+function testcase.mad()
+    -- test MAD should return NaN if number of samples is less than 3
+    local s = create_samples_data({
+        1000,
+        2000,
+    })
+    assert.is_nan(s:mad())
+
+    -- test MAD calculation with 5 values
+    s = create_samples_data({
+        1000,
+        2000,
+        3000,
+        4000,
+        5000,
+    })
+    -- Median is 3000, absolute deviations are [2000, 1000, 0, 1000, 2000]
+    -- MAD = median of [0, 1000, 1000, 2000, 2000] = 1000
+    assert.is_number(s:mad())
+    assert.equal(s:mad(), 1000.0)
+
+    -- test with identical values
+    local s_identical = create_samples_data({
+        5000,
+        5000,
+        5000,
+        5000,
+    })
+    assert.equal(s_identical:mad(), 0.0)
+end
+
