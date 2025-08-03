@@ -1,5 +1,6 @@
 local testcase = require('testcase')
 local assert = require('assert')
+local sampler = require('measure.sampler')
 local new_samples = require('measure.samples')
 
 -- Helper function to create valid samples data
@@ -1712,4 +1713,73 @@ function testcase.memstat()
 
     -- Allocation rate should be 50
     assert.equal(stat.allocation_rate, 50.0)
+end
+
+function testcase.capacity_increase()
+    -- Test capacity increase functionality
+    local s = new_samples("test", 10)
+    assert.equal(s:capacity(), 10)
+
+    -- Test that add samples works within initial capacity
+    local ok, err = sampler(function()
+    end, s)
+    assert.is_nil(err)
+    assert.is_true(ok)
+    assert.equal(#s, 10)
+
+    -- Test increasing capacity
+    local new_cap = s:capacity(5) -- Increase by 5
+    assert.equal(new_cap, 15)
+    assert.equal(s:capacity(), 15)
+
+    -- Test that existing functionality still works
+    assert.equal(s:name(), "test")
+    assert.equal(#s, 10)
+
+    -- Test with larger increase
+    new_cap = s:capacity(100) -- Increase by 100
+    assert.equal(new_cap, 115)
+    assert.equal(s:capacity(), 115)
+
+    -- Test invalid increase values
+    ok, err = pcall(function()
+        s:capacity(0)
+    end)
+    assert.is_false(ok)
+    assert.match(err, "positive integer expected")
+
+    ok, err = pcall(function()
+        s:capacity(-5)
+    end)
+    assert.is_false(ok)
+    assert.match(err, "positive integer expected")
+
+    -- Test with samples already added
+    s = create_samples_data({
+        1000,
+        2000,
+        3000,
+    }, {
+        capacity = 5,
+        count = 3,
+    })
+    assert.equal(s:capacity(), 5)
+    assert.equal(#s, 3)
+
+    -- Increase capacity and verify existing data is preserved
+    new_cap = s:capacity(10)
+    assert.equal(new_cap, 15)
+    assert.equal(s:capacity(), 15)
+    assert.equal(#s, 3) -- Count should remain the same
+
+    -- Verify statistics are preserved
+    assert.equal(s:min(), 1000)
+    assert.equal(s:max(), 3000)
+    assert.equal(s:mean(), 2000)
+
+    -- Test that we can add more samples after increasing capacity
+    ok = sampler(function()
+    end, s)
+    assert.is_true(ok)
+    assert.equal(#s, 15) -- Should be at new capacity
 end
