@@ -44,6 +44,7 @@ typedef struct {
     lua_State *L;
     measure_samples_t *samples; // pointer to the samples object
     int warmup;                 // warmup duration in seconds
+    int clear;                  // whether to clear samples before running
 } sampler_t;
 
 static inline int is_lua_error(lua_State *L, int rc)
@@ -79,16 +80,21 @@ static inline int is_lua_error(lua_State *L, int rc)
 
 static int sampling_lua(sampler_t *s)
 {
-    lua_State *L       = s->L;
-    size_t sample_size = s->samples->capacity;
+    lua_State *L    = s->L;
+    size_t capacity = s->samples->capacity;
 
     // confirm that the first argument is a function
     luaL_checktype(L, 1, LUA_TFUNCTION);
 
+    // clear the samples if requested
+    if (s->clear) {
+        measure_samples_clear(s->samples);
+    }
+
     // preprocess the samples object
     measure_samples_preprocess(s->samples, L);
 
-    for (size_t i = 0; i < sample_size; i++) {
+    for (size_t i = s->samples->count; i < capacity; i++) {
         // push the function again, as it may have been removed from the stack
         lua_pushvalue(L, 1);
         lua_pushboolean(L, 0);
@@ -153,29 +159,37 @@ static int warmup_lua(sampler_t *s)
 
 static int run_lua(lua_State *L)
 {
-    sampler_t s = {.L = L};
-    int rv      = 0;
+    sampler_t s = {
+        .L      = L,
+        .warmup = 0, // default to no warmup
+        .clear  = 0, // default to not clearing samples before running
+    };
+    int rv = 0;
 
     // check required function argument
     luaL_checktype(L, 1, LUA_TFUNCTION);
     // check required samples argument
     s.samples = luaL_checkudata(L, 2, MEASURE_SAMPLES_MT);
-    {
+    if (!lua_isnoneornil(L, 3)) {
         // check optional warmup argument
-        lua_Integer iv = luaL_optinteger(L, 3, 0);
+        luaL_checktype(L, 3, LUA_TNUMBER);
+        lua_Integer iv = luaL_checkinteger(L, 3);
         s.warmup       = (iv < 0) ? 0 : (int)iv;
     }
-    lua_settop(L, 2); // clear stack except for the samples object
+    if (!lua_isnoneornil(L, 4)) {
+        // check optional clear argument
+        luaL_checktype(L, 4, LUA_TBOOLEAN);
+        s.clear = lua_toboolean(L, 4);
+    }
+    lua_settop(L, 2); // clear stack except for the function and samples object
 
     // if warmup is greater than 0, run the function for warmup iterations
-    if (s.warmup > 0) {
-        rv = warmup_lua(&s);
-        if (rv != 0) {
-            // if there was an error during warmup, return the error
-            lua_pushboolean(L, 0);
-            lua_insert(L, -2);
-            return 2;
-        }
+    rv = warmup_lua(&s);
+    if (rv != 0) {
+        // if there was an error during warmup, return the error
+        lua_pushboolean(L, 0);
+        lua_insert(L, -2);
+        return 2;
     }
 
     // run the sampling function
