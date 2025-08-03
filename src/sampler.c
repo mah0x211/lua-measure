@@ -79,8 +79,8 @@ static inline int is_lua_error(lua_State *L, int rc)
 
 static int sampling_lua(sampler_t *s)
 {
-    lua_State *L       = s->L;
-    size_t sample_size = s->samples->capacity;
+    lua_State *L    = s->L;
+    size_t capacity = s->samples->capacity;
 
     // confirm that the first argument is a function
     luaL_checktype(L, 1, LUA_TFUNCTION);
@@ -88,7 +88,7 @@ static int sampling_lua(sampler_t *s)
     // preprocess the samples object
     measure_samples_preprocess(s->samples, L);
 
-    for (size_t i = 0; i < sample_size; i++) {
+    for (size_t i = s->samples->count; i < capacity; i++) {
         // push the function again, as it may have been removed from the stack
         lua_pushvalue(L, 1);
         lua_pushboolean(L, 0);
