@@ -63,15 +63,15 @@ typedef struct {
 } measure_samples_t;
 
 /**
- * @brief Initialize the measure_samples_t object.
+ * @brief Clear the samples object.
+ * This function resets the count, sum, min, max, mean, and M2 values,
+ * and clears the data array.
  *
  * @param s Pointer to the measure_samples_t object
- * @param L Lua state
  */
-static inline void measure_samples_preprocess(measure_samples_t *s,
-                                              lua_State *L)
+static inline void measure_samples_clear(measure_samples_t *s)
 {
-    // Always reset the samples object
+    // Clear the samples object
     s->count = 0;
     s->sum   = 0;
     s->min   = UINT64_MAX; // ensure any sample will be less
@@ -79,7 +79,20 @@ static inline void measure_samples_preprocess(measure_samples_t *s,
     s->M2    = 0.0;
     s->mean  = 0.0;
     memset(s->data, 0, sizeof(measure_samples_data_t) * s->capacity);
+    s->base_kb = 0;
+}
 
+/**
+ * @brief Preprocess the measure_samples_t object.
+ * This function saves the current garbage collector state, performs a full
+ * garbage collection, and records the baseline memory usage.
+ *
+ * @param s Pointer to the measure_samples_t object
+ * @param L Lua state
+ */
+static inline void measure_samples_preprocess(measure_samples_t *s,
+                                              lua_State *L)
+{
     // Save GC state
     s->saved_gc_pause = lua_gc(L, LUA_GCSETPAUSE, 0);
     lua_gc(L, LUA_GCSETPAUSE, s->saved_gc_pause); // Restore immediately
