@@ -183,6 +183,42 @@ static int gc_step_lua(lua_State *L)
 static int capacity_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+
+    if (lua_gettop(L) > 1) {
+        // If second argument is provided, it should be an integer
+        lua_Integer increase             = luaL_checkinteger(L, 2);
+        size_t new_capacity              = 0;
+        measure_samples_data_t *new_data = NULL;
+
+        luaL_argcheck(L, increase > 0, 2, "positive integer expected");
+
+        // Calculate new capacity
+        new_capacity = s->capacity + (size_t)increase;
+
+        // Create new data array
+        new_data = (measure_samples_data_t *)lua_newuserdata(
+            L, sizeof(measure_samples_data_t) * new_capacity);
+
+        // Copy existing data
+        if (s->count > 0) {
+            memcpy(new_data, s->data,
+                   sizeof(measure_samples_data_t) * s->count);
+        }
+
+        // Initialize new portion
+        memset(new_data + s->count, 0,
+               sizeof(measure_samples_data_t) * (new_capacity - s->capacity));
+
+        // Release old reference and set new reference
+        luaL_unref(L, LUA_REGISTRYINDEX, s->ref_data);
+        s->ref_data = luaL_ref(L, LUA_REGISTRYINDEX);
+
+        // Update pointer and capacity
+        s->data     = new_data;
+        s->capacity = new_capacity;
+    }
+
+    // Return new capacity
     lua_pushinteger(L, s->capacity);
     return 1;
 }
