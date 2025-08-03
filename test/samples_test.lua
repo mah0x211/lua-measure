@@ -18,18 +18,18 @@ local function create_samples_data(time_values, extra_fields)
         rciw = 5.0, -- Default target relative confidence interval width
     }
 
-    -- Override with extra fields if provided
-    if extra_fields then
-        for k, v in pairs(extra_fields) do
-            data[k] = v
-        end
-    end
-
     for i, time_ns in ipairs(time_values) do
         data.time_ns[i] = math.floor(time_ns)
         data.before_kb[i] = 0
         data.after_kb[i] = 0
         data.allocated_kb[i] = 0
+    end
+
+    -- Override with extra fields if provided
+    if extra_fields then
+        for k, v in pairs(extra_fields) do
+            data[k] = v
+        end
     end
 
     return new_samples(data)
@@ -1545,4 +1545,171 @@ function testcase.mad()
         5000,
     })
     assert.equal(s_identical:mad(), 0.0)
+end
+
+function testcase.memstat()
+    local s = create_samples_data({
+        1000,
+        2000,
+        3000,
+        4000,
+        5000,
+    }, {
+        before_kb = {
+            100,
+            150,
+            200,
+            250,
+            300,
+        },
+        after_kb = {
+            120,
+            180,
+            240,
+            300,
+            360,
+        },
+    })
+    -- Verify result structure
+    local stat = s:memstat()
+    assert.is_table(stat)
+    assert.is_number(stat.allocation_rate)
+    assert.is_number(stat.gc_impact)
+    assert.is_number(stat.memory_efficiency)
+    assert.is_number(stat.peak_memory)
+
+    -- Allocation rate should be average of allocated_kb
+    assert.equal(stat.allocation_rate, 40.0) -- (20+30+40+50+60)/5 = 40
+
+    -- Peak memory should be maximum after_kb
+    assert.equal(stat.peak_memory, 360)
+
+    -- Memory efficiency should be inverse of allocation rate
+    assert.less(math.abs(stat.memory_efficiency - 1.0 / 40.0), 0.001)
+
+    -- Test allocation rate calculation
+    s = create_samples_data({
+        1000,
+        2000,
+        3000,
+    }, {
+        before_kb = {
+            100,
+            100,
+            100,
+        },
+        after_kb = {
+            150,
+            150,
+            150,
+        },
+    })
+    stat = s:memstat()
+    -- Average allocation should be (50+50+50)/3 = 50
+    assert.equal(stat.allocation_rate, 50.0)
+
+    -- Memory efficiency should be 1 / allocation_rate
+    assert.equal(stat.memory_efficiency, 0.02)
+
+    -- Test peak memory detection
+    s = create_samples_data({
+        1000,
+        2000,
+        3000,
+        4000,
+    }, {
+        before_kb = {
+            100,
+            200,
+            150,
+            120,
+        },
+        after_kb = {
+            120,
+            250,
+            180,
+            140,
+        }, -- peak = 250
+    })
+    stat = s:memstat()
+    -- Peak memory should be 250
+    assert.equal(stat.peak_memory, 250)
+
+    -- Test GC impact correlation
+    -- Create scenario where high allocation correlates with high execution time
+    s = create_samples_data({
+        1000,
+        2000,
+        3000,
+        4000,
+    }, -- increasing time
+    {
+        before_kb = {
+            100,
+            100,
+            100,
+            100,
+        },
+        after_kb = {
+            110,
+            120,
+            130,
+            140,
+        },
+    })
+    stat = s:memstat()
+    -- GC impact should show positive correlation (allocation increases with time)
+    assert.greater(stat.gc_impact, 0)
+
+    -- Test with zero allocation
+    s = create_samples_data({
+        1000,
+        2000,
+        3000,
+    }, {
+        before_kb = {
+            100,
+            100,
+            100,
+        },
+        after_kb = {
+            100,
+            100,
+            100,
+        },
+    })
+    stat = s:memstat()
+    -- Allocation rate should be 0
+    assert.equal(stat.allocation_rate, 0.0)
+
+    -- Memory efficiency should be 0 (since allocation_rate is 0)
+    assert.equal(stat.memory_efficiency, 0.0)
+
+    -- Peak memory should be 100
+    assert.equal(stat.peak_memory, 100)
+
+    -- Test with identical memory patterns
+    s = create_samples_data({
+        2000,
+        2000,
+        2000,
+    }, -- identical times
+    {
+        before_kb = {
+            100,
+            100,
+            100,
+        },
+        after_kb = {
+            150,
+            150,
+            150,
+        },
+    })
+    stat = s:memstat()
+    -- GC impact should be 0 (no correlation)
+    assert.equal(stat.gc_impact, 0.0)
+
+    -- Allocation rate should be 50
+    assert.equal(stat.allocation_rate, 50.0)
 end

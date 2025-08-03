@@ -23,77 +23,6 @@
 #include "measure_samples.h"
 #include "stats/common.h"
 
-static int dump_lua(lua_State *L)
-{
-    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
-    lua_settop(L, 1);
-
-    // Create a table with 8 fields (4 data arrays + 4 metadata fields)
-    lua_createtable(L, 0, 8);
-
-    // Create time_ns, before_kb, after_kb and allocated_kb arrays
-    lua_createtable(L, s->count, 0); // 3: time_ns
-    lua_createtable(L, s->count, 0); // 4: before_kb
-    lua_createtable(L, s->count, 0); // 5: after_kb
-    lua_createtable(L, s->count, 0); // 6: allocated_kb
-    for (size_t i = 0; i < s->count; i++) {
-        int idx = i + 1;
-        lua_pushinteger(L, s->data[i].time_ns);
-        lua_rawseti(L, 3, idx);
-        lua_pushinteger(L, s->data[i].before_kb);
-        lua_rawseti(L, 4, idx);
-        lua_pushinteger(L, s->data[i].after_kb);
-        lua_rawseti(L, 5, idx);
-        lua_pushinteger(L, s->data[i].allocated_kb);
-        lua_rawseti(L, 6, idx);
-    }
-    lua_setfield(L, 2, "allocated_kb");
-    lua_setfield(L, 2, "after_kb");
-    lua_setfield(L, 2, "before_kb");
-    lua_setfield(L, 2, "time_ns");
-
-    // Add metadata fields
-    if (s->name[0] != '\0') {
-        lua_pushstring(L, s->name);
-        lua_setfield(L, 2, "name");
-    }
-
-    lua_pushinteger(L, s->capacity);
-    lua_setfield(L, 2, "capacity");
-
-    lua_pushinteger(L, s->count);
-    lua_setfield(L, 2, "count");
-
-    lua_pushinteger(L, s->gc_step);
-    lua_setfield(L, 2, "gc_step");
-
-    lua_pushnumber(L, s->cl);
-    lua_setfield(L, 2, "cl");
-
-    lua_pushnumber(L, s->rciw);
-    lua_setfield(L, 2, "rciw");
-
-    lua_pushinteger(L, s->sum);
-    lua_setfield(L, 2, "sum");
-
-    lua_pushinteger(L, s->min);
-    lua_setfield(L, 2, "min");
-
-    lua_pushinteger(L, s->max);
-    lua_setfield(L, 2, "max");
-
-    lua_pushnumber(L, s->M2);
-    lua_setfield(L, 2, "M2");
-
-    lua_pushnumber(L, s->mean);
-    lua_setfield(L, 2, "mean");
-
-    lua_pushinteger(L, s->base_kb);
-    lua_setfield(L, 2, "base_kb");
-
-    return 1;
-}
-
 static int mad_lua(lua_State *L)
 {
     measure_samples_t *samples = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
@@ -275,6 +204,130 @@ static int count_lua(lua_State *L)
 {
     measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
     lua_pushinteger(L, s->count);
+    return 1;
+}
+
+static int memstat_lua(lua_State *L)
+{
+    measure_samples_t *samples = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    size_t total_allocation    = 0;   // Total memory allocated in KB
+    size_t peak_memory         = 0;   // Peak memory usage in KB
+    double allocation_rate     = 0.0; // KB/op
+    double memory_efficiency   = 0.0; // Useful work vs allocation ratio
+    double gc_impact           = 0.0; // Correlation between GC and time
+
+    // calculate total allocation and peak memory
+    for (size_t i = 0; i < samples->count; i++) {
+        total_allocation += samples->data[i].allocated_kb;
+        if (samples->data[i].after_kb > peak_memory) {
+            peak_memory = samples->data[i].after_kb;
+        }
+    }
+    allocation_rate   = (double)total_allocation / samples->count;
+    // Memory efficiency: inverse of allocation rate (higher is better)
+    memory_efficiency = (allocation_rate > 0.0) ? 1.0 / allocation_rate : 0.0;
+
+    // Calculate correlation between allocation and time
+    if (samples->count) {
+        double mean_time  = samples->mean;
+        double mean_alloc = allocation_rate;
+        double num = 0.0, den_time = 0.0, den_alloc = 0.0;
+        for (size_t i = 0; i < samples->count; i++) {
+            double dt = (double)samples->data[i].time_ns - mean_time;
+            double da = (double)samples->data[i].allocated_kb - mean_alloc;
+            num += dt * da;
+            den_time += dt * dt;
+            den_alloc += da * da;
+        }
+        // If both denominators are non-zero, calculate the correlation
+        if (den_time > 0.0 && den_alloc > 0.0) {
+            gc_impact = num / sqrt(den_time * den_alloc);
+        }
+    } else {
+        gc_impact = NAN; // No samples, no correlation
+    }
+
+    lua_createtable(L, 0, 4);
+    lua_pushnumber(L, allocation_rate);
+    lua_setfield(L, -2, "allocation_rate");
+    lua_pushnumber(L, gc_impact);
+    lua_setfield(L, -2, "gc_impact");
+    lua_pushnumber(L, memory_efficiency);
+    lua_setfield(L, -2, "memory_efficiency");
+    lua_pushinteger(L, peak_memory);
+    lua_setfield(L, -2, "peak_memory");
+
+    return 1;
+}
+
+static int dump_lua(lua_State *L)
+{
+    measure_samples_t *s = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
+    lua_settop(L, 1);
+
+    // Create a table with 8 fields (4 data arrays + 4 metadata fields)
+    lua_createtable(L, 0, 8);
+
+    // Create time_ns, before_kb, after_kb and allocated_kb arrays
+    lua_createtable(L, s->count, 0); // 3: time_ns
+    lua_createtable(L, s->count, 0); // 4: before_kb
+    lua_createtable(L, s->count, 0); // 5: after_kb
+    lua_createtable(L, s->count, 0); // 6: allocated_kb
+    for (size_t i = 0; i < s->count; i++) {
+        int idx = i + 1;
+        lua_pushinteger(L, s->data[i].time_ns);
+        lua_rawseti(L, 3, idx);
+        lua_pushinteger(L, s->data[i].before_kb);
+        lua_rawseti(L, 4, idx);
+        lua_pushinteger(L, s->data[i].after_kb);
+        lua_rawseti(L, 5, idx);
+        lua_pushinteger(L, s->data[i].allocated_kb);
+        lua_rawseti(L, 6, idx);
+    }
+    lua_setfield(L, 2, "allocated_kb");
+    lua_setfield(L, 2, "after_kb");
+    lua_setfield(L, 2, "before_kb");
+    lua_setfield(L, 2, "time_ns");
+
+    // Add metadata fields
+    if (s->name[0] != '\0') {
+        lua_pushstring(L, s->name);
+        lua_setfield(L, 2, "name");
+    }
+
+    lua_pushinteger(L, s->capacity);
+    lua_setfield(L, 2, "capacity");
+
+    lua_pushinteger(L, s->count);
+    lua_setfield(L, 2, "count");
+
+    lua_pushinteger(L, s->gc_step);
+    lua_setfield(L, 2, "gc_step");
+
+    lua_pushnumber(L, s->cl);
+    lua_setfield(L, 2, "cl");
+
+    lua_pushnumber(L, s->rciw);
+    lua_setfield(L, 2, "rciw");
+
+    lua_pushinteger(L, s->sum);
+    lua_setfield(L, 2, "sum");
+
+    lua_pushinteger(L, s->min);
+    lua_setfield(L, 2, "min");
+
+    lua_pushinteger(L, s->max);
+    lua_setfield(L, 2, "max");
+
+    lua_pushnumber(L, s->M2);
+    lua_setfield(L, 2, "M2");
+
+    lua_pushnumber(L, s->mean);
+    lua_setfield(L, 2, "mean");
+
+    lua_pushinteger(L, s->base_kb);
+    lua_setfield(L, 2, "base_kb");
+
     return 1;
 }
 
@@ -567,6 +620,8 @@ LUALIB_API int luaopen_measure_samples(lua_State *L)
             {NULL,         NULL        }
         };
         struct luaL_Reg method[] = {
+            {"dump",       dump_lua      },
+            {"memstat",    memstat_lua   },
             {"name",       name_lua      },
             {"capacity",   capacity_lua  },
             {"gc_step",    gc_step_lua   },
@@ -583,7 +638,6 @@ LUALIB_API int luaopen_measure_samples(lua_State *L)
             {"percentile", percentile_lua},
             {"throughput", throughput_lua},
             {"mad",        mad_lua       },
-            {"dump",       dump_lua      },
             {NULL,         NULL          }
         };
 
