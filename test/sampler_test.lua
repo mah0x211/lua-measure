@@ -329,7 +329,7 @@ function testcase.sampler_function_protection()
 end
 
 function testcase.sampler_samples_reset()
-    -- Test that samples are reset on each run
+    -- Test behavior with explicit clear=true
     local samples = new_samples(nil, 5)
 
     -- First run
@@ -343,14 +343,14 @@ function testcase.sampler_samples_reset()
     assert.is_true(ok)
     assert.equal(#samples, 5)
 
-    -- Second run - samples should be reset automatically
+    -- Second run with clear=true - samples should be reset
     ok = sampler(function()
         -- Add small loop to ensure measurable time
         local sum = 0
         for i = 1, 100 do
             sum = sum + i
         end
-    end, samples)
+    end, samples, nil, true)
     assert.is_true(ok)
     assert.equal(#samples, 5) -- Should have 5 new samples, not 10
 end
@@ -536,5 +536,131 @@ function testcase.sampler_gc_error_handling()
 
     -- First sample initialization happens before error
     assert.equal(#samples, 1) -- One sample initialized but failed during execution
+end
+
+function testcase.sampler_with_clear_arg()
+    local samples = new_samples(nil, 10)
+
+    -- First run to populate samples
+    local count = 0
+    local ok = sampler(function()
+        count = count + 1
+    end, samples)
+    assert.is_true(ok)
+    assert.equal(count, 10)
+    assert.equal(#samples, 10)
+
+    -- Second run (default behavior) - should not run since samples are full
+    count = 0
+    ok = sampler(function()
+        count = count + 1
+    end, samples)
+    assert.is_true(ok)
+    assert.equal(count, 0) -- Should not run because samples are already full
+    assert.equal(#samples, 10) -- Should still have 10 samples from before
+
+    -- Third run with explicit clear=false
+    count = 0
+    ok = sampler(function()
+        count = count + 1
+    end, samples, nil, false)
+    assert.is_true(ok)
+    assert.equal(count, 0) -- Should not run because samples are already full
+    assert.equal(#samples, 10) -- Should still have 10 samples from before
+
+    -- Fourth run with clear=true
+    count = 0
+    ok = sampler(function()
+        count = count + 1
+    end, samples, nil, true)
+    assert.is_true(ok)
+    assert.equal(count, 10)
+    assert.equal(#samples, 10) -- Should have 10 samples
+end
+
+function testcase.sampler_partial_fill_with_clear()
+    -- Test clear=false behavior with capacity limit
+    local samples = new_samples(nil, 20)
+
+    -- First run - fill to capacity
+    local count = 0
+    local ok = sampler(function()
+        count = count + 1
+    end, samples)
+    assert.is_true(ok)
+    assert.equal(count, 20)
+    assert.equal(#samples, 20)
+
+    -- Run with clear=false - should not add more samples since already at capacity
+    count = 0
+    ok = sampler(function()
+        count = count + 1
+    end, samples, nil, false)
+    assert.is_true(ok)
+    assert.equal(count, 0) -- No new samples added
+    assert.equal(#samples, 20) -- Still at capacity
+
+    -- Run with clear=true - should clear and refill
+    count = 0
+    ok = sampler(function()
+        count = count + 1
+    end, samples, nil, true)
+    assert.is_true(ok)
+    assert.equal(count, 20) -- All slots filled again
+    assert.equal(#samples, 20)
+end
+
+function testcase.sampler_clear_with_warmup()
+    local samples = new_samples(nil, 10)
+
+    -- First run to populate samples
+    local ok = sampler(function()
+    end, samples)
+    assert.is_true(ok)
+    assert.equal(#samples, 10)
+
+    -- Run with warmup and clear=true
+    local warmup_count = 0
+    local sample_count = 0
+    ok = sampler(function(is_warmup)
+        if is_warmup then
+            warmup_count = warmup_count + 1
+        else
+            sample_count = sample_count + 1
+        end
+    end, samples, 1, true) -- 1 second warmup, clear=true
+    assert.is_true(ok)
+    assert.greater(warmup_count, 0)
+    assert.equal(sample_count, 10)
+    assert.equal(#samples, 10)
+end
+
+function testcase.sampler_invalid_clear_arg()
+    local samples = new_samples(nil, 10)
+
+    -- Test with invalid clear argument types
+    assert.throws(function()
+        sampler(function()
+        end, samples, nil, 'invalid') -- string instead of boolean
+    end)
+
+    assert.throws(function()
+        sampler(function()
+        end, samples, nil, 123) -- number instead of boolean
+    end)
+
+    assert.throws(function()
+        sampler(function()
+        end, samples, nil, {}) -- table instead of boolean
+    end)
+
+    -- Test with valid boolean values (should not throw)
+    local ok = sampler(function()
+    end, samples, nil, true)
+    assert.is_true(ok)
+
+    ok = sampler(function()
+    end, samples, nil, false)
+    assert.is_true(ok)
 end
 
