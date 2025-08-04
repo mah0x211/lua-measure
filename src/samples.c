@@ -430,10 +430,6 @@ static measure_samples_t *new_measure_samples(lua_State *L, const char *name,
     return s;
 }
 
-#if LUA_VERSION_NUM < 502
-# define lua_rawlen(L, idx) lua_objlen(L, idx)
-#endif
-
 #if LUA_VERSION_NUM < 503
 # define lua_isinteger(L, idx)                                                 \
      (lua_type(L, idx) == LUA_TNUMBER &&                                       \
