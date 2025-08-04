@@ -34,6 +34,10 @@
 #include <lauxlib.h>
 #include <lua.h>
 
+#if LUA_VERSION_NUM < 502
+# define lua_rawlen(L, idx) lua_objlen(L, idx)
+#endif
+
 #define MEASURE_SAMPLES_MT "measure.samples"
 
 typedef struct {
