@@ -123,15 +123,16 @@ function testcase.describe_duplicate_name()
 end
 
 function testcase.method_chaining_options()
-    -- Test method chaining with options
-    local result = measure.describe('Test').options({
+    -- Test new options API with chaining
+    local proxy = measure.options({
         warmup = 3,
         gc_step = 1024,
         confidence_level = 95,
         rciw = 5,
     })
+    local result = proxy.describe('Test')
 
-    -- Result should be the same proxy object
+    -- Result should be the describe proxy object
     assert.match(result, 'measure.describe "Test"')
 end
 
@@ -183,13 +184,13 @@ function testcase.method_chaining_teardown()
 end
 
 function testcase.method_chaining_full_sequence()
-    -- Test full method chaining sequence
-    local result = measure.describe('Full Test').options({
+    -- Test full method chaining sequence with new API
+    local result = measure.options({
         warmup = 5,
         gc_step = 0,
         confidence_level = 95,
         rciw = 5,
-    }).setup(function()
+    }).describe('Full Test').setup(function()
         return 'test_data'
     end).run(function(data)
         assert.equal(data, 'test_data')
@@ -201,9 +202,9 @@ function testcase.method_chaining_full_sequence()
 end
 
 function testcase.method_error_handling()
-    -- Test error handling in method calls
+    -- Test error handling in new options API
     assert.throws(function()
-        measure.describe('Test').options("not a table")
+        measure.options("not a table")
     end)
 end
 
@@ -274,7 +275,7 @@ function testcase.complex_chaining_with_hooks()
         ctx.iteration = i
     end
 
-    measure.describe('Complex Test').options({
+    measure.options({
         context = function()
             return {
                 local_data = 'local',
@@ -283,7 +284,7 @@ function testcase.complex_chaining_with_hooks()
         warmup = 1,
         confidence_level = 95,
         rciw = 5,
-    }).setup_once(function(ctx)
+    }).describe('Complex Test').setup_once(function(ctx)
         return ctx.local_data .. '_setup'
     end).run(function(data)
         assert.is_string(data)
@@ -302,134 +303,147 @@ function testcase.complex_chaining_with_hooks()
     assert.is_true(true) -- All operations succeeded
 end
 
--- Test cases for actual measure module to verify constraint behaviors
-function testcase.actual_measure_describe_chain_prevention()
-    -- Test actual measure module to ensure describe chaining is prevented
+-- Test cases for actual measure module behavior
+function testcase.actual_measure_proxy_behavior()
     registry.clear()
     local actual_measure = require('measure')
 
+    -- Test describe chaining prevention
     assert.throws(function()
         actual_measure.describe('Test').describe('Another')
     end, 'has no method "describe"')
-end
 
-function testcase.actual_measure_allow_new_describe_flag()
-    -- Test AllowNewDescribe flag behavior with actual module
-    registry.clear()
-    local actual_measure = require('measure')
-
-    -- First access to describe should work
-    local desc = actual_measure.describe('Test')
-    assert.is_table(desc)
-
-    -- After calling describe(), accessing it again should work (flag resets after call)
+    -- Test multiple describe creation
+    local desc1 = actual_measure.describe('Test1')
     local desc2 = actual_measure.describe('Test2')
+    assert.is_table(desc1)
     assert.is_table(desc2)
-end
 
-function testcase.actual_measure_proxy_table_access_prevention()
-    -- Test that proxy object returns functions for method access
-    registry.clear()
-    local actual_measure = require('measure')
+    -- Test proxy method access returns functions
+    local setup_method = desc1.setup
+    local run_method = desc1.run
+    assert.is_function(setup_method)
+    assert.is_function(run_method)
 
-    local desc_proxy = actual_measure.describe('Test')
-    -- Accessing invalid method should return a function
-    local invalid_method = desc_proxy.invalid_property
+    -- Test methods can be called independently
+    setup_method(function()
+        return 'test_data'
+    end)
+    run_method(function()
+    end)
+
+    -- Test invalid method access returns function but calling fails
+    local invalid_method = desc1.invalid_property
     assert.is_function(invalid_method)
-
-    -- But calling it should fail
     assert.throws(function()
         invalid_method()
     end, 'has no method "invalid_property"')
-end
 
-function testcase.actual_measure_proxy_multiple_method_access()
-    -- Test that proxy allows multiple method access with new implementation
-    registry.clear()
-    local actual_measure = require('measure')
+    -- Test tostring
+    assert.equal(tostring(desc1), 'measure.describe "Test1"')
 
-    local desc_proxy = actual_measure.describe('Test')
-    -- First method access returns a function
-    local options_method = desc_proxy.options
-    assert.is_function(options_method)
-
-    -- Second method access also returns a function (allowed in new implementation)
-    local run_method = desc_proxy.run
-    assert.is_function(run_method)
-
-    -- Both methods can be called independently
-    options_method({
-        confidence_level = 95,
-        rciw = 5,
-    })
-    run_method(function()
-    end)
-end
-
-function testcase.actual_measure_error_messages()
-    -- Test accurate error messages from actual module
-    registry.clear()
-    local actual_measure = require('measure')
-
-    -- Test function call error
+    -- Test proxy call fails
     assert.throws(function()
-        actual_measure()
-    end, 'Attempt to call measure')
-
-    -- Test invalid table access
-    assert.throws(function()
-        local _ = actual_measure.invalid_property
-    end, 'Attempt to access measure as a table')
-
-    -- Test hook type validation
-    assert.throws(function()
-        actual_measure.before_all = "not a function"
-    end, 'fn must be a function')
-end
-
-function testcase.actual_measure_hook_name_validation()
-    -- Test hook name validation with actual module
-    registry.clear()
-    local actual_measure = require('measure')
-
-    assert.throws(function()
-        actual_measure[123] = function()
-        end
-    end, 'name must be a string')
-
-    assert.throws(function()
-        actual_measure.invalid_hook = function()
-        end
-    end, 'Invalid hook name')
-end
-
-function testcase.actual_measure_describe_parameter_validation()
-    -- Test describe parameter validation
-    registry.clear()
-    local actual_measure = require('measure')
-
-    assert.throws(function()
-        actual_measure.describe(123)
-    end, 'name must be a string')
-
-    assert.throws(function()
-        actual_measure.describe("test", "not a function")
-    end, 'namefn must be a function or nil')
-end
-
-function testcase.actual_measure_proxy_call_without_method()
-    -- Test calling proxy without setting method
-    registry.clear()
-    local actual_measure = require('measure')
-
-    local desc_proxy = actual_measure.describe('Test')
-    assert.throws(function()
-        desc_proxy()
+        desc1()
     end, 'Attempt to call')
 end
 
+function testcase.actual_measure_error_handling()
+    registry.clear()
+    local actual_measure = require('measure')
+
+    -- Test various error conditions
+    local error_cases = {
+        {
+            function()
+                actual_measure()
+            end,
+            'Attempt to call measure',
+        },
+        {
+            function()
+                local _ = actual_measure.invalid_property
+            end,
+            'Attempt to access measure as a table',
+        },
+        {
+            function()
+                actual_measure.before_all = "not a function"
+            end,
+            'fn must be a function',
+        },
+        {
+            function()
+                actual_measure[123] = function()
+                end
+            end,
+            'name must be a string',
+        },
+        {
+            function()
+                actual_measure.invalid_hook = function()
+                end
+            end,
+            'Invalid hook name',
+        },
+        {
+            function()
+                actual_measure.describe(123)
+            end,
+            'name must be a string',
+        },
+        {
+            function()
+                actual_measure.describe("test", "not a function")
+            end,
+            'namefn must be a function or nil',
+        },
+    }
+
+    for _, case in ipairs(error_cases) do
+        assert.throws(case[1], case[2])
+    end
+end
+
+function testcase.actual_measure_proxy_table_access()
+    registry.clear()
+    local actual_measure = require('measure')
+    local desc_proxy = actual_measure.describe('Test')
+
+    -- Test non-string key access
+    local invalid_keys = {
+        123,
+        {},
+        nil,
+    }
+    for _, key in ipairs(invalid_keys) do
+        assert.throws(function()
+            local _ = desc_proxy[key]
+        end, 'Attempt to access measure.describe as a table')
+    end
+end
+
+function testcase.actual_measure_method_validation()
+    registry.clear()
+    local actual_measure = require('measure')
+    local desc_proxy = actual_measure.describe('Test')
+
+    -- Test method call errors
+    assert.throws(function()
+        desc_proxy.setup("not a function")
+    end, 'setup(): argument must be a function')
+
+    -- Test method ordering constraints
+    desc_proxy.run_with_timer(function()
+    end)
+    assert.throws(function()
+        desc_proxy.run(function()
+        end)
+    end, 'run(): cannot be defined if run_with_timer')
+end
+
 function testcase.actual_measure_complete_workflow()
-    -- Test complete workflow with actual module
+    -- Test complete workflow with new options API
     registry.clear()
     local actual_measure = require('measure')
 
@@ -439,17 +453,16 @@ function testcase.actual_measure_complete_workflow()
             start_time = os.time(),
         }
     end
-
     actual_measure.before_each = function(i, ctx)
         ctx.iteration = i
     end
 
-    -- Create benchmark
-    actual_measure.describe('Complete Test').options({
+    -- Create benchmark with new chaining API
+    actual_measure.options({
         warmup = 1,
         confidence_level = 95,
         rciw = 5,
-    }).setup(function(i)
+    }).describe('Complete Test').setup(function(i)
         return 'test_data_' .. i
     end).run(function(data)
         assert.is_string(data)
@@ -463,65 +476,4 @@ function testcase.actual_measure_complete_workflow()
     end
 
     assert.is_true(true) -- Workflow completed successfully
-end
-
-function testcase.actual_measure_proxy_non_string_method_access()
-    -- Test non-string method access on proxy object
-    registry.clear()
-    local actual_measure = require('measure')
-
-    local desc_proxy = actual_measure.describe('Test')
-
-    -- Try to access with non-string key (number)
-    assert.throws(function()
-        local _ = desc_proxy[123]
-    end, 'Attempt to access measure.describe as a table')
-
-    -- Try to access with table key
-    assert.throws(function()
-        local _ = desc_proxy[{}]
-    end, 'Attempt to access measure.describe as a table')
-
-    -- Try to access with nil key
-    assert.throws(function()
-        local _ = desc_proxy[nil]
-    end, 'Attempt to access measure.describe as a table')
-end
-
-function testcase.actual_measure_method_call_error()
-    -- Test method call that returns error
-    registry.clear()
-    local actual_measure = require('measure')
-
-    local desc_proxy = actual_measure.describe('Test')
-
-    -- Call options with invalid argument to trigger error
-    assert.throws(function()
-        desc_proxy.options("not a table")
-    end, 'options(): argument must be a table')
-
-    -- Call setup with invalid argument
-    assert.throws(function()
-        desc_proxy.setup("not a function")
-    end, 'setup(): argument must be a function')
-
-    -- Call run after run_with_timer (should fail)
-    desc_proxy.run_with_timer(function()
-    end)
-    assert.throws(function()
-        desc_proxy.run(function()
-        end)
-    end, 'run(): cannot be defined if run_with_timer')
-end
-
-function testcase.actual_measure_proxy_tostring()
-    -- Test __tostring metamethod of proxy object
-    registry.clear()
-    local actual_measure = require('measure')
-
-    local desc_proxy = actual_measure.describe('MyBenchmark')
-    assert.equal(tostring(desc_proxy), 'measure.describe "MyBenchmark"')
-
-    local desc_proxy2 = actual_measure.describe('Another Test')
-    assert.equal(tostring(desc_proxy2), 'measure.describe "Another Test"')
 end
