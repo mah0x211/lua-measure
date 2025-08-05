@@ -27,22 +27,12 @@ local type = type
 local find = string.find
 local sub = string.sub
 local format = string.format
-local floor = math.floor
 local getinfo = require('measure.getinfo')
-local INF_POS = math.huge
-local INF_NEG = -INF_POS
-
---- @class measure.describe.spec.options
---- @field context table|function|nil Context for the benchmark
---- @field warmup number|nil Warmup iterations before measuring
---- @field gc_step number|nil Garbage collection step size for sampling
---- @field confidence_level number|nil confidence level in percentage (0-100, default: 95)
---- @field rciw number|nil relative confidence interval width in percentage (0-100, default: 5)
 
 --- @class measure.describe.spec
 --- @field name string The name of the benchmark
 --- @field namefn function|nil Optional function to generate dynamic names
---- @field options measure.describe.spec.options|nil Options for the benchmark
+--- @field options measure.options|nil Options for the benchmark
 --- @field setup function|nil Setup function for each iteration
 --- @field setup_once function|nil Setup function that runs once before all iterations
 --- @field run function|nil The function to benchmark
@@ -60,81 +50,6 @@ local INF_NEG = -INF_POS
 local Describe = require('measure.metatable')(function(self)
     return format('measure.describe %q', self.spec.name)
 end)
-
---- Validate options table values
---- @param opts table The options table to validate
---- @return boolean ok True if valid
---- @return string|nil err Error message if invalid
-local function validate_options(opts)
-    -- Validate context
-    if opts.context ~= nil then
-        local t = type(opts.context)
-        if t ~= 'table' and t ~= 'function' then
-            return false, 'options.context must be a table or a function'
-        end
-    end
-
-    -- Validate warmup
-    if opts.warmup ~= nil then
-        local v = opts.warmup
-        if type(v) ~= 'number' or v < 0 or v > 5 then
-            return false, 'options.warmup must be a number between 0 and 5'
-        end
-    end
-
-    -- Validate gc_step
-    if opts.gc_step ~= nil then
-        local v = opts.gc_step
-        if type(v) ~= 'number' or v ~= v or v == INF_POS or v == INF_NEG or
-            v ~= floor(v) then
-            return false, 'options.gc_step must be an integer'
-        end
-    end
-
-    -- Validate confidence level
-    if opts.confidence_level ~= nil then
-        local v = opts.confidence_level
-        if type(v) ~= 'number' or v <= 0 or v > 100 then
-            return false,
-                   'options.confidence_level must be a number between 0 and 100'
-        end
-    end
-
-    -- Validate relative confidence interval width (RCIW)
-    if opts.rciw ~= nil then
-        local v = opts.rciw
-        if type(v) ~= 'number' or v <= 0 or v > 100 then
-            return false, 'options.rciw must be a number between 0 and 100'
-        end
-    end
-
-    return true
-end
-
---- Configure benchmark execution parameters
---- @param opts table The options table
---- @return boolean ok True if successful
---- @return string|nil err Error message if failed
-function Describe:options(opts)
-    local spec = self.spec
-    if type(opts) ~= 'table' then
-        return false, 'argument must be a table'
-    elseif spec.options then
-        return false, 'options cannot be defined twice'
-    elseif spec.setup or spec.setup_once or spec.run or spec.run_with_timer then
-        return false,
-               'options must be defined before setup(), setup_once(), run() or run_with_timer()'
-    end
-
-    -- Validate options
-    local ok, err = validate_options(opts)
-    if not ok then
-        return false, err
-    end
-
-    spec.options = opts
-    return true
-end
 
 --- Define setup function for each benchmark iteration
 --- @param fn function The setup function
@@ -233,9 +148,10 @@ end
 --- Create a new benchmark describe instance
 --- @param name string The name of the benchmark
 --- @param namefn function? Optional function to generate dynamic names
+--- @param opts measure.options? Optional options for the describe
 --- @return measure.describe? desc The new describe instance
 --- @return string? err Error message if failed
-local function new_describe(name, namefn)
+local function new_describe(name, namefn, opts)
     if type(name) ~= 'string' then
         return nil, format('name must be a string, got %q', type(name))
     elseif namefn ~= nil and type(namefn) ~= 'function' then
@@ -268,6 +184,7 @@ local function new_describe(name, namefn)
         spec = {
             name = name,
             namefn = namefn,
+            options = opts,
         },
         fileinfo = fileinfo,
     }, Describe)
