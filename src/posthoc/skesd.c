@@ -34,19 +34,15 @@
 #define COHEN_D_MEDIUM 0.5
 #define COHEN_D_LARGE  0.8
 
-// Structure to hold cluster information for Scott-Knott ESD
+// Unified structure to hold sample information for Scott-Knott ESD
 typedef struct {
-    int id;          // Cluster identifier (0-based)
-    size_t count;    // Number of samples in this cluster
-    double mean;     // Mean of this cluster
-    double variance; // Variance of this cluster
-} skesd_cluster_t;
-
-// Structure to store original sample reference (internal use)
-typedef struct {
-    measure_samples_t *sample;
-    int idx;
-} sample_ref_t;
+    size_t count;              // Number of samples in this cluster
+    double mean;               // Mean of this cluster
+    double variance;           // Variance of this cluster
+    measure_samples_t *sample; // Reference to original Lua sample object
+    int lua_idx;               // Index in Lua table (1-based)
+    int cluster_id;            // Assigned cluster ID (-1 = unassigned)
+} skesd_sample_t;
 
 // Structure to hold statistical calculation results
 typedef struct {
@@ -72,23 +68,23 @@ static inline double calc_cohen_d(double mean1, double var1, size_t n1,
     return fabs(mean1 - mean2) / combined_std;
 }
 
-// Compare function for sorting clusters by mean
-static int compare_clusters_by_mean(const void *a, const void *b)
+// Compare function for sorting samples by mean
+static int compare_samples_by_mean(const void *a, const void *b)
 {
-    const skesd_cluster_t *cluster_a = (const skesd_cluster_t *)a;
-    const skesd_cluster_t *cluster_b = (const skesd_cluster_t *)b;
+    const skesd_sample_t *sample_a = (const skesd_sample_t *)a;
+    const skesd_sample_t *sample_b = (const skesd_sample_t *)b;
 
-    if (cluster_a->mean < cluster_b->mean) {
+    if (sample_a->mean < sample_b->mean) {
         return -1;
     }
-    if (cluster_a->mean > cluster_b->mean) {
+    if (sample_a->mean > sample_b->mean) {
         return 1;
     }
     return 0;
 }
 
 // Calculate sum of squares between clusters for partitioning
-static double calc_between_clusters_ss(const skesd_cluster_t *clusters,
+static double calc_between_clusters_ss(const skesd_sample_t *samples,
                                        size_t start, size_t end,
                                        size_t split_point)
 {
@@ -101,13 +97,13 @@ static double calc_between_clusters_ss(const skesd_cluster_t *clusters,
     size_t left_count = 0, right_count = 0;
 
     for (size_t i = start; i < split_point; i++) {
-        left_sum += clusters[i].mean * clusters[i].count;
-        left_count += clusters[i].count;
+        left_sum += samples[i].mean * samples[i].count;
+        left_count += samples[i].count;
     }
 
     for (size_t i = split_point; i < end; i++) {
-        right_sum += clusters[i].mean * clusters[i].count;
-        right_count += clusters[i].count;
+        right_sum += samples[i].mean * samples[i].count;
+        right_count += samples[i].count;
     }
 
     if (left_count == 0 || right_count == 0) {
@@ -127,7 +123,7 @@ static double calc_between_clusters_ss(const skesd_cluster_t *clusters,
 }
 
 // Find optimal partition point using Scott-Knott approach
-static size_t find_optimal_partition(const skesd_cluster_t *clusters,
+static size_t find_optimal_partition(const skesd_sample_t *samples,
                                      size_t start, size_t end)
 {
     if (end - start <= 1) {
@@ -139,7 +135,7 @@ static size_t find_optimal_partition(const skesd_cluster_t *clusters,
 
     // Try all possible split points
     for (size_t split = start + 1; split < end; split++) {
-        double ss = calc_between_clusters_ss(clusters, start, end, split);
+        double ss = calc_between_clusters_ss(samples, start, end, split);
         if (ss > max_ss) {
             max_ss     = ss;
             best_split = split;
@@ -150,25 +146,24 @@ static size_t find_optimal_partition(const skesd_cluster_t *clusters,
 }
 
 // Calculate combined statistics with flexible cluster selection
-// For range: pass assignments=NULL, start/end for range
-// For cluster: pass assignments with cluster_id, start=0,
-// end=num_clusters
+// For range: pass target_cluster_id=-1 for range-based calculation
+// For cluster: pass target_cluster_id>=0 for cluster-based calculation
 static statistics_result_t
-calc_cluster_stats_flexible(const skesd_cluster_t *clusters, size_t start,
-                            size_t end, const int *assignments,
-                            int target_cluster_id)
+calc_cluster_stats_flexible(const skesd_sample_t *samples, size_t start,
+                            size_t end, int target_cluster_id)
 {
     double sum = 0.0, sum_sq = 0.0;
     size_t count = 0;
 
     for (size_t i = start; i < end; i++) {
-        // Include cluster if: no cluster filter OR cluster belongs to target
-        // cluster
-        if (assignments == NULL || assignments[i] == target_cluster_id) {
-            sum += clusters[i].mean * clusters[i].count;
-            sum_sq += clusters[i].variance * (clusters[i].count - 1) +
-                      clusters[i].mean * clusters[i].mean * clusters[i].count;
-            count += clusters[i].count;
+        // Include sample if: range mode (target_cluster_id == -1) OR
+        // cluster matches target
+        if (target_cluster_id == -1 ||
+            samples[i].cluster_id == target_cluster_id) {
+            sum += samples[i].mean * samples[i].count;
+            sum_sq += samples[i].variance * (samples[i].count - 1) +
+                      samples[i].mean * samples[i].mean * samples[i].count;
+            count += samples[i].count;
         }
     }
 
@@ -189,29 +184,26 @@ calc_cluster_stats_flexible(const skesd_cluster_t *clusters, size_t start,
 }
 
 // Convenience wrapper for range-based statistics
-static statistics_result_t calc_combined_stats(const skesd_cluster_t *clusters,
+static statistics_result_t calc_combined_stats(const skesd_sample_t *samples,
                                                size_t start, size_t end)
 {
-    return calc_cluster_stats_flexible(clusters, start, end, NULL, 0);
+    return calc_cluster_stats_flexible(samples, start, end, -1);
 }
 
 // Convenience wrapper for cluster-based statistics
-static statistics_result_t calc_cluster_stats(const skesd_cluster_t *clusters,
-                                              const int *assignments,
-                                              int num_clusters, int cluster_id)
+static statistics_result_t calc_cluster_stats(const skesd_sample_t *samples,
+                                              int num_samples, int cluster_id)
 {
-    return calc_cluster_stats_flexible(clusters, 0, (size_t)num_clusters,
-                                       assignments, cluster_id);
+    return calc_cluster_stats_flexible(samples, 0, (size_t)num_samples,
+                                       cluster_id);
 }
 
-static int should_merge_partitions(const skesd_cluster_t *clusters,
-                                   size_t start, size_t split, size_t end,
-                                   double threshold)
+static int should_merge_partitions(const skesd_sample_t *samples, size_t start,
+                                   size_t split, size_t end, double threshold)
 {
     // Calculate combined statistics for left and right partitions
-    statistics_result_t left_stats =
-        calc_combined_stats(clusters, start, split);
-    statistics_result_t right_stats = calc_combined_stats(clusters, split, end);
+    statistics_result_t left_stats = calc_combined_stats(samples, start, split);
+    statistics_result_t right_stats = calc_combined_stats(samples, split, end);
 
     if (left_stats.count == 0 || right_stats.count == 0) {
         return 1; // Merge if one partition is empty
@@ -227,112 +219,48 @@ static int should_merge_partitions(const skesd_cluster_t *clusters,
 }
 
 // Recursive Scott-Knott ESD clustering
-static void scott_knott_esd_recursive(skesd_cluster_t *clusters, size_t start,
-                                      size_t end, int *assignments,
-                                      int *current_cluster_id,
+static void scott_knott_esd_recursive(skesd_sample_t *samples, size_t start,
+                                      size_t end, int *current_cluster_id,
                                       double effect_threshold)
 {
     if (end - start <= 1) {
-        // Assign single cluster
+        // Assign single cluster directly to samples
         for (size_t i = start; i < end; i++) {
-            assignments[clusters[i].id] = *current_cluster_id;
+            samples[i].cluster_id = *current_cluster_id;
         }
         (*current_cluster_id)++;
         return;
     }
 
+    // Sort the current range by mean for partitioning (internal algorithm
+    // requirement)
+    qsort(samples + start, end - start, sizeof(skesd_sample_t),
+          compare_samples_by_mean);
+
     // Find optimal partition
-    size_t split = find_optimal_partition(clusters, start, end);
+    size_t split = find_optimal_partition(samples, start, end);
 
     // Check if partitions should be merged based on effect size
-    if (should_merge_partitions(clusters, start, split, end,
-                                effect_threshold)) {
-        // Merge into single cluster
+    if (should_merge_partitions(samples, start, split, end, effect_threshold)) {
+        // Merge into single cluster directly to samples
         for (size_t i = start; i < end; i++) {
-            assignments[clusters[i].id] = *current_cluster_id;
+            samples[i].cluster_id = *current_cluster_id;
         }
         (*current_cluster_id)++;
         return;
     }
 
     // Recursively process left and right partitions
-    scott_knott_esd_recursive(clusters, start, split, assignments,
-                              current_cluster_id, effect_threshold);
-    scott_knott_esd_recursive(clusters, split, end, assignments,
-                              current_cluster_id, effect_threshold);
-}
-
-// Extract sample clusters from Lua input and validate them
-static int extract_and_validate_samples(lua_State *L, int table_index,
-                                        skesd_cluster_t **clusters_ptr,
-                                        sample_ref_t **samples_ptr)
-{
-    size_t table_len = lua_rawlen(L, table_index);
-    if (table_len == 0) {
-        return luaL_error(L, "empty table or hash-like tables not supported");
-    }
-
-    int num_clusters = 0;
-    skesd_cluster_t *clusters =
-        lua_newuserdata(L, sizeof(skesd_cluster_t) * table_len);
-    sample_ref_t *samples =
-        lua_newuserdata(L, sizeof(sample_ref_t) * table_len);
-
-    for (size_t i = 1; i <= table_len; i++) {
-        lua_rawgeti(L, table_index, (lua_Integer)i);
-        if (lua_isnil(L, -1)) {
-            lua_pop(L, 1);
-            continue;
-        }
-
-        measure_samples_t *sample_data =
-            luaL_checkudata(L, -1, MEASURE_SAMPLES_MT);
-
-        // Validate sample
-        if (sample_data->count < 2) {
-            return luaL_error(L,
-                              "each cluster must contain at least 2 samples");
-        }
-
-        // Extract statistics
-        double mean     = sample_data->mean;
-        double variance = sample_data->M2 / (sample_data->count - 1);
-
-        if (!isfinite(mean) || !isfinite(variance) || variance <= 0.0) {
-            return luaL_error(L, "invalid sample statistics or zero variance");
-        }
-
-        // Store cluster info
-        clusters[num_clusters] = (skesd_cluster_t){.id    = (int)num_clusters,
-                                                   .count = sample_data->count,
-                                                   .mean  = mean,
-                                                   .variance = variance};
-
-        samples[num_clusters] = (sample_ref_t){
-            .sample = sample_data,
-            .idx    = (int)i,
-        };
-
-        num_clusters++;
-        lua_pop(L, 1);
-    }
-
-    if (num_clusters < 2) {
-        return luaL_error(
-            L, "Scott-Knott ESD requires at least two clusters, got %zu",
-            num_clusters);
-    }
-
-    *clusters_ptr = clusters;
-    *samples_ptr  = samples;
-    return num_clusters;
+    scott_knott_esd_recursive(samples, start, split, current_cluster_id,
+                              effect_threshold);
+    scott_knott_esd_recursive(samples, split, end, current_cluster_id,
+                              effect_threshold);
 }
 
 // Calculate Cohen's d for a specific cluster against all other clusters
-static double calc_cohen_d_for_cluster(const skesd_cluster_t *clusters,
-                                       const int *assignments, int num_samples,
-                                       int num_clusters, int cluster_id,
-                                       int *compare_cluster)
+static double calc_cohen_d_for_cluster(const skesd_sample_t *samples,
+                                       int num_samples, int num_clusters,
+                                       int cluster_id, int *compare_cluster)
 {
     double max_cohen_d = 0.0;
     *compare_cluster   = 0;
@@ -344,9 +272,9 @@ static double calc_cohen_d_for_cluster(const skesd_cluster_t *clusters,
 
         // Calculate combined statistics for both clusters
         statistics_result_t stats_i =
-            calc_cluster_stats(clusters, assignments, num_samples, cluster_id);
+            calc_cluster_stats(samples, num_samples, cluster_id);
         statistics_result_t stats_j =
-            calc_cluster_stats(clusters, assignments, num_samples, j);
+            calc_cluster_stats(samples, num_samples, j);
 
         if (stats_i.count > 0 && stats_j.count > 0) {
             double cohen_d =
@@ -354,8 +282,9 @@ static double calc_cohen_d_for_cluster(const skesd_cluster_t *clusters,
                              stats_j.mean, stats_j.variance, stats_j.count);
 
             if (cohen_d > max_cohen_d) {
-                max_cohen_d = cohen_d;
-                // Store the actual cluster ID (1-based) of the comparison cluster
+                max_cohen_d      = cohen_d;
+                // Store the actual cluster ID (1-based) of the comparison
+                // cluster
                 *compare_cluster = (num_clusters > 1) ? (j + 1) : 0;
             }
         }
@@ -364,11 +293,8 @@ static double calc_cohen_d_for_cluster(const skesd_cluster_t *clusters,
     return max_cohen_d;
 }
 
-// Build result structure from clustering results
-static int build_result_structure(lua_State *L, const skesd_cluster_t *clusters,
-                                  const sample_ref_t *samples,
-                                  const int *assignments, int num_samples,
-                                  int num_clusters)
+static int build_result_structure(lua_State *L, const skesd_sample_t *samples,
+                                  int num_samples, int num_clusters)
 {
     // Track which clusters have been processed for Cohen's d calculation
     int8_t *processed = alloca(sizeof(int8_t) * num_clusters);
@@ -380,22 +306,20 @@ static int build_result_structure(lua_State *L, const skesd_cluster_t *clusters,
 
     // Assign sample indices and calculate Cohen's d in one pass
     for (int i = 0; i < num_samples; i++) {
-        int assigned_cluster = assignments[i];
-        int cluster_id       = clusters[i].id;
-        int cluster_number   = assigned_cluster + 1; // 1-based
+        int cluster_id  = samples[i].cluster_id;
+        int cluster_idx = cluster_id + 1; // Convert to 1-based index
 
         // get or create cluster in result table
-        lua_rawgeti(L, -1, cluster_number);
+        lua_rawgeti(L, -1, cluster_idx);
         if (lua_isnil(L, -1)) {
             // Create new cluster entry
             lua_pop(L, 1);            // Pop nil
             lua_createtable(L, 0, 4); // Create new cluster table
             lua_pushvalue(L, -1); // Duplicate cluster table for setting fields
-            lua_rawseti(L, -3,
-                        cluster_number); // Set cluster table in result
+            lua_rawseti(L, -3, cluster_idx); // Set cluster table in result
 
             // id field
-            lua_pushinteger(L, cluster_number);
+            lua_pushinteger(L, cluster_idx);
             lua_setfield(L, -2, "id");
 
             // samples field
@@ -405,16 +329,16 @@ static int build_result_structure(lua_State *L, const skesd_cluster_t *clusters,
 
         // Calculate Cohen's d and statistics if not yet processed for this
         // cluster
-        if (!processed[assigned_cluster]) {
+        if (!processed[cluster_id]) {
             int compare_cluster = 0;
-            double cohen_d      = calc_cohen_d_for_cluster(
-                clusters, assignments, num_samples, num_clusters,
-                assigned_cluster, &compare_cluster);
-            processed[assigned_cluster] = 1;
+            double cohen_d =
+                calc_cohen_d_for_cluster(samples, num_samples, num_clusters,
+                                         cluster_id, &compare_cluster);
+            processed[cluster_id] = 1;
 
             // Calculate cluster statistics
-            statistics_result_t stats = calc_cluster_stats(
-                clusters, assignments, num_samples, assigned_cluster);
+            statistics_result_t stats =
+                calc_cluster_stats(samples, num_samples, cluster_id);
 
             // mean field
             lua_pushnumber(L, stats.mean);
@@ -443,7 +367,7 @@ static int build_result_structure(lua_State *L, const skesd_cluster_t *clusters,
 
         // Add original sample from input table to samples table
         lua_getfield(L, -1, "samples");
-        lua_rawgeti(L, 1, samples[cluster_id].idx);
+        lua_rawgeti(L, 1, samples[i].lua_idx);
         lua_rawseti(L, -2, lua_rawlen(L, -2) + 1);
 
         // Pop the samples table and cluster table
@@ -453,7 +377,59 @@ static int build_result_structure(lua_State *L, const skesd_cluster_t *clusters,
     return 1; // Return the result table on the stack
 }
 
-// Main Scott-Knott ESD function with simplified API
+// Extract sample clusters from Lua input and validate them
+static int extract_and_validate_samples(lua_State *L, int table_index,
+                                        skesd_sample_t *samples, size_t len)
+{
+    int num_samples = 0;
+
+    for (size_t i = 1; i <= len; i++) {
+        lua_rawgeti(L, table_index, (lua_Integer)i);
+        if (lua_isnil(L, -1)) {
+            lua_pop(L, 1);
+            continue;
+        }
+
+        measure_samples_t *sample_data =
+            luaL_checkudata(L, -1, MEASURE_SAMPLES_MT);
+
+        // Validate sample
+        if (sample_data->count < 2) {
+            return luaL_error(L,
+                              "each cluster must contain at least 2 samples");
+        }
+
+        // Extract statistics
+        double mean     = sample_data->mean;
+        double variance = sample_data->M2 / (sample_data->count - 1);
+
+        if (!isfinite(mean) || !isfinite(variance) || variance <= 0.0) {
+            return luaL_error(L, "invalid sample statistics or zero variance");
+        }
+
+        // Store unified sample info
+        samples[num_samples] = (skesd_sample_t){
+            .count      = sample_data->count,
+            .mean       = mean,
+            .variance   = variance,
+            .sample     = sample_data,
+            .lua_idx    = (int)i,
+            .cluster_id = -1, // Unassigned initially
+        };
+
+        num_samples++;
+        lua_pop(L, 1);
+    }
+
+    if (num_samples < 2) {
+        return luaL_error(
+            L, "Scott-Knott ESD requires at least two samples, got %d",
+            num_samples);
+    }
+
+    return num_samples;
+}
+
 static int scott_knott_esd_lua(lua_State *L)
 {
     // 1. Parse inputs
@@ -467,27 +443,26 @@ static int scott_knott_esd_lua(lua_State *L)
         }
     }
 
-    // 2. Extract and validate samples
-    skesd_cluster_t *clusters = NULL;
-    sample_ref_t *samples     = NULL;
-    int num_samples = extract_and_validate_samples(L, 1, &clusters, &samples);
-
-    // 3. Perform Scott-Knott clustering
-    qsort(clusters, (size_t)num_samples, sizeof(skesd_cluster_t),
-          compare_clusters_by_mean);
-
-    int *assignments = alloca(sizeof(int) * (size_t)num_samples);
-    for (int i = 0; i < num_samples; i++) {
-        assignments[i] = -1; // Use -1 as invalid marker
+    // 2. Check table length and allocate samples on stack
+    size_t len = lua_rawlen(L, 1);
+    if (len == 0) {
+        return luaL_error(L, "empty table or hash-like tables not supported");
     }
 
+    skesd_sample_t *samples = lua_newuserdata(L, sizeof(skesd_sample_t) * len);
+    int num_samples         = extract_and_validate_samples(L, 1, samples, len);
+
+    // 3. Perform Scott-Knott clustering
+    // Note: Do NOT sort by performance - Scott-Knott ESD works on statistical
+    // differences The algorithm will internally sort samples as needed for
+    // partitioning
+
     int num_clusters = 0;
-    scott_knott_esd_recursive(clusters, 0, (size_t)num_samples, assignments,
-                              &num_clusters, effect_threshold);
+    scott_knott_esd_recursive(samples, 0, (size_t)num_samples, &num_clusters,
+                              effect_threshold);
 
     // 4. Build result structure
-    return build_result_structure(L, clusters, samples, assignments,
-                                  num_samples, num_clusters);
+    return build_result_structure(L, samples, num_samples, num_clusters);
 }
 
 LUALIB_API int luaopen_measure_posthoc_skesd(lua_State *L)
