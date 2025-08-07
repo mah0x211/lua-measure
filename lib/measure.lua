@@ -32,13 +32,16 @@ local registry_get = require('measure.registry').get
 local registry_add = require('measure.registry').add
 local new_options = require('measure.options')
 
---- @type fun(name: string, namefn: function|nil, opts: measure.options?): measure.describe
+--- @alias add_describe_fn fun(name: string, namefn: function?): measure.describe
+
+--- @type fun(source: string, options: measure.options?):add_describe_fn
 local new_describe
 
 --- Create a new describe proxy object
 --- @param desc measure.describe The benchmark description object
---- @param opts measure.options? Optional options for the describe
-local function new_describe_proxy(desc, opts)
+--- @param source string The source file path
+--- @param options measure.options? Optional options for the describe
+local function new_describe_proxy(desc, source, options)
     return setmetatable({}, {
         __tostring = function()
             return tostring(desc)
@@ -53,9 +56,7 @@ local function new_describe_proxy(desc, opts)
             if method == 'describe' then
                 -- creates a new describe object with the same options
                 if desc.spec.run or desc.spec.run_with_timer then
-                    return function(name, namefn)
-                        return new_describe(name, namefn, opts)
-                    end
+                    return new_describe(source, options)
                 end
                 -- If the run or run_with_timer is not defined, it is not allowed to create a new describe
                 error(format(
@@ -84,10 +85,10 @@ local function new_describe_proxy(desc, opts)
 end
 
 --- Get the measure.spec for the current file
+--- @param source string source filepath
 --- @return measure.spec
-local function get_spec()
-    local info = getinfo(2, 'file')
-    local spec = registry_get(info.file.source)
+local function get_spec(source)
+    local spec = registry_get(source)
     if spec then
         -- Spec already exists, return it
         return spec
@@ -95,11 +96,9 @@ local function get_spec()
 
     -- Create a new spec for this file
     spec = new_spec()
-    local ok, err = registry_add(info.file.source, spec)
+    local ok, err = registry_add(source, spec)
     if not ok then
-        error(
-            format('Failed to register spec for %q: %s', info.file.source, err),
-            2)
+        error(format('Failed to register spec for %q: %s', source, err), 2)
     end
     return spec
 end
@@ -107,7 +106,8 @@ end
 -- Hook setter (__newindex)
 -- Handles assignment of lifecycle hooks
 local function hook_setter(_, key, fn)
-    local spec = get_spec()
+    local info = getinfo(1, 'file')
+    local spec = get_spec(info.file.source)
     local ok, err = spec:set_hook(key, fn)
     if not ok then
         error(err, 2)
@@ -116,19 +116,20 @@ end
 
 --- Create a new describer object
 --- This is called when measure.describe() is invoked
---- @param name string Name of the measure.describe
---- @param namefn function Optional function to generate the name
---- @param opts measure.options? Optional options for the describe
---- @return measure.describe
-function new_describe(name, namefn, opts)
-    -- Create new benchmark description
-    local spec = get_spec()
-    local desc, err = spec:new_describe(name, namefn, opts)
-    if not desc then
-        error(err, 2)
+--- @param source string source filepath
+--- @param options measure.options? Optional options for the describe
+--- @return add_describe_fn
+function new_describe(source, options)
+    --- @type fun(name: string, namefn: function?): measure.describe
+    return function(name, namefn)
+        -- Create new benchmark description
+        local spec = get_spec(source)
+        local desc, err = spec:new_describe(name, namefn, options)
+        if not desc then
+            error(err, 2)
+        end
+        return new_describe_proxy(desc, source, options)
     end
-
-    return new_describe_proxy(desc, opts)
 end
 
 --- Prevent non-describe access to the measure object
@@ -148,10 +149,9 @@ local function set_options(opts)
         error(err, 2)
     end
 
+    local info = getinfo(1, 'file')
     return setmetatable({
-        describe = function(name, namefn)
-            return new_describe(name, namefn, options)
-        end,
+        describe = new_describe(info.file.source, options),
     }, {
         __index = prevent_non_describe_access,
         __newindex = prevent_non_describe_access,
@@ -161,7 +161,8 @@ end
 local function allow_new_describe(_, key)
     if type(key) == 'string' then
         if key == 'describe' then
-            return new_describe
+            local info = getinfo(1, 'file')
+            return new_describe(info.file.source)
         elseif key == 'options' then
             return set_options
         end
