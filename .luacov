@@ -12,6 +12,7 @@ modules = {
     ["measure.print"] = "lib/print.lua",
     ["measure.realpath"] = "lib/realpath.lua",
     ["measure.registry"] = "lib/registry.lua",
+    ["measure.report.format"] = "lib/report/format.lua",
     ["measure.spec"] = "lib/spec.lua",
     ["measure.stats.ci"] = "lib/stats/ci.lua",
     ["measure.stats.iqr"] = "lib/stats/iqr.lua",
