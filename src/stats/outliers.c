@@ -43,44 +43,31 @@ typedef struct {
     size_t capacity; // Capacity of indices array
 } outliers_t;
 
-static void outliers_free(outliers_t *outliers)
-{
-    if (outliers) {
-        free(outliers->indices);
-        free(outliers);
-    }
-}
+// Error codes for outlier detection
+typedef enum {
+    OUTLIER_SUCCESS                  = 0,
+    OUTLIER_ERR_INSUFFICIENT_SAMPLES = 1,
+    OUTLIER_ERR_INVALID_STATISTICS   = 2,
+    OUTLIER_ERR_INVALID_METHOD       = 3
+} outlier_error_t;
 
 // Helper function for MAD-based outlier detection with custom threshold
-// NOTE: Assumes input has already been validated
-static outliers_t *stats_outliers_mad_impl(const measure_samples_t *samples,
-                                           double threshold)
+// NOTE: Assumes input has already been validated and outliers structure is
+// initialized
+static outlier_error_t stats_outliers_mad_impl(const measure_samples_t *samples,
+                                               double threshold,
+                                               outliers_t *outliers)
 {
     if (samples->count < MIN_SAMPLES_MAD_OUTLIER) {
-        return NULL;
+        return OUTLIER_ERR_INSUFFICIENT_SAMPLES;
     }
-
-    outliers_t *outliers = malloc(sizeof(outliers_t));
-    if (!outliers) {
-        return NULL;
-    }
-
-    outliers->indices = malloc(samples->count * sizeof(size_t));
-    if (!outliers->indices) {
-        free(outliers);
-        return NULL;
-    }
-
-    outliers->count    = 0;
-    outliers->capacity = samples->count;
 
     double median = stats_percentile(samples, PERCENTILE_50);
     double mad    = stats_mad(samples);
 
     if (!is_valid_number(median) || !is_valid_number(mad) ||
         mad <= STATS_EPSILON) {
-        outliers_free(outliers);
-        return NULL;
+        return OUTLIER_ERR_INVALID_STATISTICS;
     }
 
     // MAD threshold (use default if not specified)
@@ -96,7 +83,7 @@ static outliers_t *stats_outliers_mad_impl(const measure_samples_t *samples,
         }
     }
 
-    return outliers;
+    return OUTLIER_SUCCESS;
 }
 
 /**
@@ -104,29 +91,20 @@ static outliers_t *stats_outliers_mad_impl(const measure_samples_t *samples,
  * @param samples Pointer to samples data structure
  * @param method Outlier detection method (MEASURE_OUTLIER_TUKEY or
  * MEASURE_OUTLIER_MAD)
- * @return outliers_t structure containing indices of detected outliers
+ * @param outliers Pointer to outliers structure to fill
+ * @return Error code (OUTLIER_SUCCESS on success)
  */
-// NOTE: Assumes input has already been validated
-static outliers_t *stats_outliers(const measure_samples_t *samples,
-                                  outlier_method_t method)
+// NOTE: Assumes input has already been validated and outliers structure is
+// initialized
+static outlier_error_t stats_outliers(const measure_samples_t *samples,
+                                      outlier_method_t method,
+                                      outliers_t *outliers)
 {
     if (samples->count < MIN_SAMPLES_OUTLIER_DETECTION) {
-        return NULL;
+        return OUTLIER_ERR_INSUFFICIENT_SAMPLES;
     }
 
-    outliers_t *outliers = malloc(sizeof(outliers_t));
-    if (!outliers) {
-        return NULL;
-    }
-
-    outliers->indices = malloc(samples->count * sizeof(size_t));
-    if (!outliers->indices) {
-        free(outliers);
-        return NULL;
-    }
-
-    outliers->count    = 0;
-    outliers->capacity = samples->count;
+    outliers->count = 0; // Reset count
 
     if (method == MEASURE_OUTLIER_TUKEY) {
         // Tukey's method using IQR
@@ -134,8 +112,7 @@ static outliers_t *stats_outliers(const measure_samples_t *samples,
         double q3 = stats_percentile(samples, PERCENTILE_75);
 
         if (!is_valid_number(q1) || !is_valid_number(q3)) {
-            outliers_free(outliers);
-            return NULL;
+            return OUTLIER_ERR_INVALID_STATISTICS;
         }
 
         double iqr         = q3 - q1;
@@ -149,50 +126,71 @@ static outliers_t *stats_outliers(const measure_samples_t *samples,
                 outliers->indices[outliers->count++] = i;
             }
         }
+        return OUTLIER_SUCCESS;
     } else if (method == MEASURE_OUTLIER_MAD) {
         // Use the unified MAD implementation with default threshold
-        outliers_free(outliers);
-        return stats_outliers_mad_impl(samples, OUTLIER_MAD_DEFAULT);
+        return stats_outliers_mad_impl(samples, OUTLIER_MAD_DEFAULT, outliers);
     } else {
         // Invalid method
-        outliers_free(outliers);
-        return NULL;
+        return OUTLIER_ERR_INVALID_METHOD;
     }
+}
 
-    return outliers;
+// Helper function to get error message
+static const char *get_outlier_error_message(outlier_error_t err)
+{
+    switch (err) {
+    case OUTLIER_SUCCESS:
+        return NULL;
+    case OUTLIER_ERR_INSUFFICIENT_SAMPLES:
+        return "insufficient samples for outlier detection (need at least 4 "
+               "samples)";
+    case OUTLIER_ERR_INVALID_STATISTICS:
+        return "invalid statistics (unable to compute percentiles or MAD)";
+    case OUTLIER_ERR_INVALID_METHOD:
+        return "invalid outlier detection method";
+    default:
+        return "unknown error";
+    }
 }
 
 // Lua binding for outliers detection
 static int outliers_lua(lua_State *L)
 {
+    static const char *const methods[] = {"tukey", "mad", NULL};
     measure_samples_t *samples = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
-    const char *method_str     = luaL_optstring(L, 2, "tukey");
+    int method_idx             = luaL_checkoption(L, 2, "tukey", methods);
+    outlier_method_t method =
+        (method_idx == 0) ? MEASURE_OUTLIER_TUKEY : MEASURE_OUTLIER_MAD;
 
-    outlier_method_t method;
-    if (strcmp(method_str, "tukey") == 0) {
-        method = MEASURE_OUTLIER_TUKEY;
-    } else if (strcmp(method_str, "mad") == 0) {
-        method = MEASURE_OUTLIER_MAD;
-    } else {
-        return luaL_error(
-            L, "unknown outlier detection method: %s (use 'tukey' or 'mad')",
-            method_str);
-    }
+    // Allocate indices array using lua_newuserdata
+    // This ensures proper memory management by Lua's GC
+    size_t *indices =
+        (size_t *)lua_newuserdata(L, samples->count * sizeof(size_t));
 
-    outliers_t *outliers = stats_outliers(samples, method);
-    if (!outliers) {
-        return luaL_error(L, "failed to detect outliers");
+    // Create outliers structure on stack
+    outliers_t outliers = {
+        .indices  = indices,
+        .capacity = samples->count,
+        .count    = 0,
+    };
+
+    // Detect outliers
+    outlier_error_t err = stats_outliers(samples, method, &outliers);
+    if (err != OUTLIER_SUCCESS) {
+        // Return nil and error message
+        lua_pushnil(L);
+        lua_pushstring(L, get_outlier_error_message(err));
+        return 2;
     }
 
     // Return array of outlier indices (1-based for Lua)
-    lua_createtable(L, outliers->count, 0);
-    for (size_t i = 0; i < outliers->count; i++) {
-        lua_pushinteger(L, outliers->indices[i] +
-                               1); // Convert to 1-based indexing
+    lua_createtable(L, outliers.count, 0);
+    for (size_t i = 0; i < outliers.count; i++) {
+        lua_pushinteger(L,
+                        outliers.indices[i] + 1); // Convert to 1-based indexing
         lua_rawseti(L, -2, i + 1);
     }
-
-    outliers_free(outliers);
     return 1;
 }
 
