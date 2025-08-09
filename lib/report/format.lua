@@ -109,30 +109,6 @@ local function format_gc_step(gc_step)
     return format("%d KB", gc_step)
 end
 
---- Format quality score with visual indicator
---- @param quality string Quality assessment
---- @param confidence_score number? Confidence score (0-1)
---- @return string Formatted quality with visual indicator
-local function format_quality_indicator(quality, confidence_score)
-    assert(type(quality) == 'string', 'quality must be a string')
-    assert(confidence_score == nil or type(confidence_score) == 'number',
-           'confidence_score must be a number')
-
-    if not confidence_score then
-        return quality
-    end
-
-    local indicator = "---" -- Default for very low confidence
-    if confidence_score >= 0.8 then
-        indicator = "***" -- High confidence
-    elseif confidence_score >= 0.6 then
-        indicator = "**-" -- Medium confidence
-    elseif confidence_score >= 0.4 then
-        indicator = "*--" -- Low confidence
-    end
-    return format("%s %s", quality, indicator)
-end
-
 -- Export module
 return {
     time = format_time,
@@ -140,5 +116,4 @@ return {
     throughput = format_throughput,
     memory = format_memory,
     gc_step = format_gc_step,
-    quality_indicator = format_quality_indicator,
 }
