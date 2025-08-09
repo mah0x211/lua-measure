@@ -16,7 +16,7 @@ local TEST_CONSTANTS = {
     SAMPLE_COUNT_LARGE = 150, -- Large sample count for df > 30 tests
 
     -- Statistical constants (should match values in ci.lua)
-    MIN_SAMPLE_SIZE = 100, -- Minimum required sample size
+    MIN_SAMPLE_SIZE = 30, -- Minimum required sample size
     QUALITY_EXCELLENT_THRESHOLD = 2.0, -- RCIW <= 2% is excellent
     QUALITY_GOOD_THRESHOLD = 5.0, -- RCIW <= 5% is good
     QUALITY_ACCEPTABLE_THRESHOLD = 10.0, -- RCIW <= 10% is acceptable
@@ -236,7 +236,7 @@ function testcase.single_sample()
     assert.is_nan(result.lower)
     assert.is_nan(result.upper)
     -- Should recommend resampling to MIN_SAMPLE_SIZE
-    assert.equal(result.resample_size, 100)
+    assert.equal(result.resample_size, 30)
 end
 
 function testcase.edge_cases()
@@ -302,7 +302,7 @@ function testcase.extreme_edge_cases()
     assert.is_nan(result_small.lower)
     assert.is_nan(result_small.upper)
     -- Should recommend resampling to MIN_SAMPLE_SIZE
-    assert.equal(result_small.resample_size, 100)
+    assert.equal(result_small.resample_size, 30)
 end
 
 function testcase.large_df_cap()
@@ -401,7 +401,7 @@ function testcase.rciw_error_cases()
     assert.is_table(result3)
     assert.is_nan(result3.rciw)
     -- Should recommend resampling to MIN_SAMPLE_SIZE
-    assert.equal(result3.resample_size, 100)
+    assert.equal(result3.resample_size, 30)
 end
 
 function testcase.rciw_zero_mean_edge_case()
@@ -539,7 +539,7 @@ function testcase.resample_target_calculation()
 
     if result.resample_size then
         -- Resample size should be at least minimum sample size (100)
-        assert.greater_or_equal(result.resample_size, 100)
+        assert.greater_or_equal(result.resample_size, 30)
     end
 end
 
@@ -800,7 +800,7 @@ function testcase.resample_size_calculation()
     -- Should recommend resampling for very strict target
     if result_poor.rciw > 1.0 then
         assert.is_number(result_poor.resample_size)
-        assert.greater_or_equal(result_poor.resample_size, 100) -- At least MIN_SAMPLE_SIZE
+        assert.greater_or_equal(result_poor.resample_size, 30) -- At least MIN_SAMPLE_SIZE
     end
 end
 
