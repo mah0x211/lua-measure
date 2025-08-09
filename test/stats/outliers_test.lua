@@ -75,3 +75,17 @@ function testcase.error_handling()
     assert.is_false(ok)
     assert.match(err, 'samples')
 end
+
+function testcase.insufficient_samples()
+    -- test with insufficient samples (less than 4)
+    local s = create_mock_samples({
+        100,
+        110,
+    })
+
+    local result, err = outliers(s)
+
+    assert.is_nil(result)
+    assert.is_string(err)
+    assert.match(err, 'insufficient')
+end
