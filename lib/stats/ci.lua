@@ -20,7 +20,6 @@
 -- DEALINGS IN THE SOFTWARE.
 --
 local abs = math.abs
-local exp = math.exp
 local sqrt = math.sqrt
 local min = math.min
 local max = math.max
@@ -128,48 +127,6 @@ local function calculate_resample_size(samples, target_rciw, confidence_level,
     return estimated_n
 end
 
---- Calculate confidence score based on statistical indicators
---- Modern approach considering statistical validity requirements
---- @param sample_size number Number of samples used
---- @param rciw number RCIW value
---- @param cv_val number Coefficient of variation
---- @return number confidence score (0.0 to 1.0)
-local function calculate_confidence_score(sample_size, rciw, cv_val)
-    if is_nan(rciw) then
-        return 0.0
-    end
-
-    -- Sample size factor (0.0 to 0.5) - based on MIN_SAMPLES
-    local size_factor = min(sample_size / MIN_SAMPLE_SIZE, 1.0) * 0.5
-
-    -- RCIW quality factor (0.0 to 0.3)
-    local quality_factor
-    if rciw <= QUALITY_EXCELLENT then
-        quality_factor = 0.3
-    elseif rciw <= QUALITY_GOOD then
-        quality_factor = 0.3 * (QUALITY_GOOD - rciw) /
-                             (QUALITY_GOOD - QUALITY_EXCELLENT)
-    elseif rciw <= QUALITY_ACCEPTABLE then
-        quality_factor = 0.2 * (QUALITY_ACCEPTABLE - rciw) /
-                             (QUALITY_ACCEPTABLE - QUALITY_GOOD)
-    else
-        quality_factor = max(0.05,
-                             0.2 * exp(-(rciw - QUALITY_ACCEPTABLE) / 10.0))
-    end
-
-    -- CV factor (0.0 to 0.2) - penalize high variation
-    local cv_factor
-    if cv_val <= 0.1 then -- Very low variation
-        cv_factor = 0.2
-    elseif cv_val <= 0.5 then -- Moderate variation
-        cv_factor = 0.2 * (0.5 - cv_val) / 0.4
-    else -- High variation (common in GC environments)
-        cv_factor = max(0.0, 0.1 * exp(-cv_val))
-    end
-
-    return size_factor + quality_factor + cv_factor
-end
-
 --- Calculate confidence interval for the mean using t-distribution
 --- Uses appropriate t-values based on degrees of freedom for small samples,
 --- normal distribution approximation for large samples (n >= 30)
@@ -188,7 +145,6 @@ local function confidence_interval(samples)
         sample_size = samples and #samples or 0, -- Number of samples used for calculation
         quality = "unknown", -- Quality classification: excellent/good/acceptable/poor/unknown
         resample_size = nil, -- Recommended sample size for resampling (nil if not needed)
-        confidence_score = 0.0, -- Statistical confidence score (0.0-1.0)
     }
     local confidence_level = level / 100.0
 
@@ -201,7 +157,6 @@ local function confidence_interval(samples)
 
     local mean_val = samples:mean()
     local stderr_val = calculate_stderr(samples)
-    local cv_val = samples:cv()
     if is_nan(mean_val) or is_nan(stderr_val) then
         return result
     end
@@ -237,8 +192,6 @@ local function confidence_interval(samples)
     result.resample_size = calculate_resample_size(samples, target_rciw,
                                                    confidence_level, mean_val,
                                                    stderr_val)
-    result.confidence_score = calculate_confidence_score(result.sample_size,
-                                                         result.rciw, cv_val)
 
     return result
 end

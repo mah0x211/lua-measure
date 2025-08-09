@@ -54,7 +54,6 @@ function testcase.default_level()
     -- test new fields
     assert.is_number(result.sample_size)
     assert.is_string(result.quality)
-    assert.is_number(result.confidence_score)
     -- resample_size can be nil or number
     if result.resample_size then
         assert.is_number(result.resample_size)
@@ -83,8 +82,6 @@ function testcase.default_level()
         unknown = true,
     }
     assert.is_true(valid_qualities[result.quality])
-    assert.greater_or_equal(result.confidence_score, 0.0)
-    assert.less_or_equal(result.confidence_score, 1.0)
 end
 
 function testcase.custom_levels()
@@ -529,28 +526,6 @@ function testcase.custom_target_rciw()
     end
 end
 
-function testcase.confidence_score_ranges()
-    -- Test confidence score calculation
-
-    -- Large sample with good precision should have high confidence
-    local large_good = {}
-    for i = 1, 200 do
-        large_good[i] = 1000 + (i % 10) -- Small variation
-    end
-    local s_large_good = create_mock_samples(large_good)
-    local result_large_good = ci(s_large_good)
-    assert.greater(result_large_good.confidence_score, 0.5)
-
-    -- Small sample with poor precision should have low confidence
-    local time_values_poor = {}
-    for i = 1, 100 do -- Minimum required samples
-        time_values_poor[i] = 1000 + (i - 1) * 100 -- High variation
-    end
-    local s_small_poor = create_mock_samples(time_values_poor)
-    local result_small_poor = ci(s_small_poor)
-    assert.less(result_small_poor.confidence_score, 0.7)
-end
-
 function testcase.resample_target_calculation()
     -- Test resample target calculation logic
     local time_values = {}
@@ -581,7 +556,6 @@ function testcase.identical_values_quality()
     assert.equal(result.quality, "excellent")
     -- For identical values with 100 samples, resample_size should be nil (no resampling needed)
     assert.is_nil(result.resample_size)
-    assert.greater(result.confidence_score, 0.2) -- Moderate confidence even for consistent data
 end
 
 -- New test cases for complete coverage
@@ -772,7 +746,7 @@ function testcase.quality_classification_branches()
 end
 
 function testcase.cv_factor_branches()
-    -- Test different CV factor branches in calculate_confidence_score (lines 400-409)
+    -- Test different CV factor branches
 
     -- Test very low variation (cv <= 0.1)
     local time_values_low_cv = {}
@@ -929,21 +903,6 @@ function testcase.force_nan_classify_quality()
     -- Should handle extreme variation gracefully
 end
 
-function testcase.force_nan_confidence_score()
-    -- Purpose: Test confidence score calculation with extreme variations
-    -- Coverage: Tests calculate_confidence_score() with high CV values
-    -- Method: Use large increasing values to create high coefficient of variation
-    local time_values = {}
-    for i = 1, 100 do
-        time_values[i] = i * 1000000 -- Large increasing values
-    end
-
-    local s_large_range = create_mock_samples(time_values, 95)
-    local result = ci(s_large_range)
-    assert.is_table(result)
-    assert.is_number(result.confidence_score)
-end
-
 function testcase.force_nan_mean_or_stderr()
     -- Purpose: Test numerical stability with wide value ranges
     -- Coverage: Tests mean and stderr calculations with extreme range differences
@@ -1078,7 +1037,7 @@ function testcase.force_nan_handling()
     -- Method: Use edge case data (all zeros) that might produce NaN in calculations
 
     -- Test classify_quality with NaN rciw (line 315)
-    -- Test calculate_confidence_score with NaN rciw (line 380)
+    -- Test with NaN rciw
     -- These require special conditions to generate NaN RCIW
 
     -- Test with empty or problematic sample data that might cause NaN
