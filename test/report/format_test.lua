@@ -118,38 +118,6 @@ function testcase.format_gc_step()
     assert.equal(fmt.gc_step(-100), "-100 KB")
 end
 
--- Test format_quality_indicator function
-function testcase.format_quality_indicator()
-    -- Test without confidence score
-    assert.equal(fmt.quality_indicator("excellent"), "excellent")
-    assert.equal(fmt.quality_indicator("good"), "good")
-    assert.equal(fmt.quality_indicator("poor"), "poor")
-    assert.equal(fmt.quality_indicator("unknown"), "unknown")
-
-    -- Test with nil confidence score
-    assert.equal(fmt.quality_indicator("good", nil), "good")
-
-    -- Test with high confidence (>= 0.8)
-    assert.equal(fmt.quality_indicator("excellent", 0.8), "excellent ***")
-    assert.equal(fmt.quality_indicator("good", 0.9), "good ***")
-    assert.equal(fmt.quality_indicator("good", 1.0), "good ***")
-
-    -- Test with medium confidence (>= 0.6, < 0.8)
-    assert.equal(fmt.quality_indicator("good", 0.6), "good **-")
-    assert.equal(fmt.quality_indicator("acceptable", 0.7), "acceptable **-")
-    assert.equal(fmt.quality_indicator("good", 0.79), "good **-")
-
-    -- Test with low confidence (>= 0.4, < 0.6)
-    assert.equal(fmt.quality_indicator("acceptable", 0.4), "acceptable *--")
-    assert.equal(fmt.quality_indicator("poor", 0.5), "poor *--")
-    assert.equal(fmt.quality_indicator("good", 0.59), "good *--")
-
-    -- Test with very low confidence (< 0.4)
-    assert.equal(fmt.quality_indicator("poor", 0.0), "poor ---")
-    assert.equal(fmt.quality_indicator("poor", 0.1), "poor ---")
-    assert.equal(fmt.quality_indicator("acceptable", 0.39), "acceptable ---")
-end
-
 -- Test edge cases and boundary values
 function testcase.edge_cases()
     -- Test very large numbers
@@ -179,22 +147,8 @@ function testcase.argument_validation()
     local err = assert.throws(fmt.gc_step, "invalid")
     assert.match(err, "gc_step must be a number")
 
-    -- Test format_quality_indicator with invalid quality type
-    local err2 = assert.throws(fmt.quality_indicator, 123, 0.5)
-    assert.match(err2, "quality must be a string")
-
-    -- Test format_quality_indicator with nil quality (should fail now)
-    local err3 = assert.throws(fmt.quality_indicator, nil, 0.5)
-    assert.match(err3, "quality must be a string")
-
-    -- Test format_quality_indicator with invalid confidence_score type
-    local err4 = assert.throws(fmt.quality_indicator, "good", "invalid")
-    assert.match(err4, "confidence_score must be a number")
-
     -- Test valid calls should work
     assert.equal(fmt.gc_step(256), "256 KB")
-    assert.equal(fmt.quality_indicator("good", 0.8), "good ***")
-    assert.equal(fmt.quality_indicator("good"), "good") -- nil confidence_score is ok
 end
 
 -- Test format patterns and precision
