@@ -52,10 +52,9 @@ function testcase.basic()
 
     -- test outlier fields
     assert.is_table(result.outliers)
-    assert.is_number(result.outliers.mild)
-    assert.is_number(result.outliers.severe)
-    assert.is_number(result.outliers.total)
+    assert.is_number(result.outliers.count)
     assert.is_number(result.outliers.percentage)
+    assert.is_table(result.outliers.indices)
 
     -- test additional fields
     assert.is_number(result.sample_count)
@@ -154,10 +153,20 @@ function testcase.from_stats()
     assert.equal(result.rciw, ci_result.rciw)
     assert.equal(result.ci_quality, ci_result.quality)
 
-    local outlier_result = outliers(s)
-    assert.equal(result.outliers.mild, outlier_result.mild or 0)
-    assert.equal(result.outliers.severe, outlier_result.severe or 0)
-    assert.equal(result.outliers.percentage, outlier_result.percentage or 0)
+    local outlier_indices, outlier_err = outliers(s)
+    if not outlier_err and outlier_indices then
+        assert.equal(result.outliers.count, #outlier_indices)
+        assert.equal(result.outliers.percentage, (#outlier_indices / 5 * 100))
+        assert.equal(#result.outliers.indices, #outlier_indices)
+        -- Check that indices match
+        for i, idx in ipairs(outlier_indices) do
+            assert.equal(result.outliers.indices[i], idx)
+        end
+    else
+        assert.equal(result.outliers.count, 0)
+        assert.equal(result.outliers.percentage, 0)
+        assert.equal(#result.outliers.indices, 0)
+    end
 end
 
 function testcase.nan_handling()
@@ -185,10 +194,10 @@ function testcase.quality_assessment()
     local result_small = summary(s_small)
     assert.is_string(result_small.quality)
     assert.is_number(result_small.quality_score)
-    assert(result_small.quality == 'excellent' or
-           result_small.quality == 'good' or
-           result_small.quality == 'acceptable' or
-           result_small.quality == 'poor')
+    assert(
+        result_small.quality == 'excellent' or result_small.quality == 'good' or
+            result_small.quality == 'acceptable' or result_small.quality ==
+            'poor')
 
     -- Create larger sample set for better quality score
     local large_samples = {}
