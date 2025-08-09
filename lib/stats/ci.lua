@@ -24,16 +24,17 @@ local sqrt = math.sqrt
 local min = math.min
 local max = math.max
 local ceil = math.ceil
+local log = math.log
 local quantile = require('measure.quantile')
 
 -- Constants for statistical calculations
 local STATS_EPSILON = 1e-15
-local MIN_SAMPLE_SIZE = 100 -- Minimum sample size
+local MIN_SAMPLE_SIZE = 30 -- Minimum sample size (CLT threshold)
 
 -- Quality assessment thresholds based on RCIW (%)
-local QUALITY_EXCELLENT = 2.0 -- Bootstrap-equivalent precision
-local QUALITY_GOOD = 5.0 -- Practical precision (recommended default)
-local QUALITY_ACCEPTABLE = 10.0 -- Minimum acceptable level
+local QUALITY_EXCELLENT = 2.0 -- RCIW ≤ 2% indicates excellent precision
+local QUALITY_GOOD = 5.0 -- RCIW ≤ 5% indicates good precision (recommended default)
+local QUALITY_ACCEPTABLE = 10.0 -- RCIW ≤ 10% indicates acceptable precision
 
 -- NaN value for error handling
 local NaN = 0 / 0
@@ -82,7 +83,7 @@ local function classify_quality(rciw)
 end
 
 --- Calculate recommended sample size for resampling based on actual measurements
---- Uses real-time half-width comparison for adaptive sampling (ChatGPT o3 approach)
+--- Uses confidence interval half-width comparison for adaptive sampling
 --- @param samples measure.samples Current samples data
 --- @param target_rciw number Target RCIW value (%)
 --- @param confidence_level number Confidence level in ratio format (e.g., 0.97)
@@ -98,40 +99,59 @@ local function calculate_resample_size(samples, target_rciw, confidence_level,
         return MIN_SAMPLE_SIZE
     end
 
-    -- Convert target RCIW to target half-width (δ)
-    -- RCIW = 2 * half-width / mean * 100%
-    -- Therefore: half-width = RCIW * mean / 200
-    local target_half_width = target_rciw * abs(current_mean) / 200.0
+    -- Convert target RCIW to target margin of error
+    -- RCIW = 2 * margin_of_error / mean * 100%
+    -- Therefore: margin_of_error = RCIW * mean / 200
+    local target_margin = target_rciw * abs(current_mean) / 200.0
 
-    -- Get appropriate critical value (t or z)
+    -- Get appropriate critical value (t-distribution)
     local critical_value = quantile(confidence_level)
 
-    -- Calculate current half-width from actual measurements
-    local current_half_width = critical_value * current_stderr
+    -- Calculate current margin of error from actual measurements
+    local current_margin = critical_value * current_stderr
 
-    -- ChatGPT o3 stopping condition: half <= delta
-    if current_half_width <= target_half_width then
+    -- Check if current margin of error meets the target
+    if current_margin <= target_margin then
         return nil -- Target achieved, no resampling needed
     end
 
     -- If target not achieved, estimate required sample size
-    -- Formula: n_req = (critical_value * stddev / target_half_width)^2
+    -- Formula: n_req = (critical_value * stddev / target_margin)^2
     local current_stddev = current_stderr * sqrt(current_n)
-    local estimated_n = (critical_value * current_stddev / target_half_width) ^
-                            2
+    local raw_estimated_n = (critical_value * current_stddev / target_margin) ^
+                                2
+
+    -- Apply progressive scaling for extreme ratios to prevent unrealistic recommendations
+    local current_ratio = raw_estimated_n / current_n
+    local scaled_estimated_n
+
+    if current_ratio <= 2.0 then
+        -- Small increase: use as-is
+        scaled_estimated_n = raw_estimated_n
+    elseif current_ratio <= 5.0 then
+        -- Moderate increase: slight dampening
+        scaled_estimated_n = current_n * (1 + (current_ratio - 1) * 0.8)
+    elseif current_ratio <= 10.0 then
+        -- Large increase: moderate dampening
+        scaled_estimated_n = current_n * (1 + (current_ratio - 1) * 0.5)
+    else
+        -- Extreme increase: heavy dampening (logarithmic scaling)
+        local log_ratio = log(current_ratio)
+        scaled_estimated_n = current_n * (1 + log_ratio * 2)
+    end
 
     -- Apply minimum and reasonable upper bound
-    estimated_n = max(ceil(estimated_n), current_n + 30) -- At least 30 more samples
-    estimated_n = min(estimated_n, 10000) -- Cap at 10000 samples
+    local estimated_n = max(ceil(scaled_estimated_n), current_n + 10) -- At least 10 more samples
+    estimated_n = min(estimated_n, current_n * 20) -- Cap at 20x current size
+    estimated_n = min(estimated_n, 5000) -- Absolute cap at 5000 samples
 
     return estimated_n
 end
 
 --- Calculate confidence interval for the mean using t-distribution
---- Uses appropriate t-values based on degrees of freedom for small samples,
---- normal distribution approximation for large samples (n >= 30)
+--- Uses appropriate t-values based on degrees of freedom for all sample sizes
 --- @param samples measure.samples An instance of measure.samples with cl() and rciw() methods
---- @return table confidence_interval_t structure with comprehensive quality assessment
+--- @return table confidence interval result with quality metrics and resampling recommendations
 local function confidence_interval(samples)
     -- Use confidence_level from options if provided, otherwise from samples
     local level = samples:cl()
