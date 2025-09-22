@@ -1,7 +1,7 @@
 require('luacov')
 local testcase = require('testcase')
 local assert = require('assert')
-local new_samples = require('measure.samples')
+local new_samples = require('measure.samples').new
 local welch_t_test = require('measure.compare.welcht')
 
 -- Create mock samples with specified time values

@@ -1,7 +1,7 @@
 --
 -- Common helper module for creating mock samples in tests
 --
-local samples = require('measure.samples')
+local samples = require('measure.samples').new
 
 -- Default values for mock samples
 local DEFAULT_CONFIDENCE_LEVEL = 95 -- 95% confidence level
@@ -21,12 +21,12 @@ local function create_mock_samples(time_values, confidence_level, rciw, opts)
     rciw = rciw or DEFAULT_RCIW
 
     local count = #time_values
-    
+
     -- Calculate statistical values
     local sum = 0
     local min_val = math.huge
     local max_val = 0
-    
+
     for _, time_ns in ipairs(time_values) do
         local val = math.floor(time_ns) -- Ensure integer values
         sum = sum + val
@@ -37,16 +37,16 @@ local function create_mock_samples(time_values, confidence_level, rciw, opts)
             max_val = val
         end
     end
-    
+
     -- Handle empty data case
     if count == 0 then
         min_val = 0
         max_val = 0
         sum = 0
     end
-    
+
     local mean = count > 0 and (sum / count) or 0
-    
+
     -- Calculate M2 using Welford's method for variance calculation
     local M2 = 0
     if count > 1 then
@@ -56,7 +56,7 @@ local function create_mock_samples(time_values, confidence_level, rciw, opts)
             M2 = M2 + (delta * delta)
         end
     end
-    
+
     local data = {
         name = opts.name or nil, -- Add name field support
         time_ns = {},

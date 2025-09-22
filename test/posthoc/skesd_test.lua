@@ -1,6 +1,6 @@
 local testcase = require('testcase')
 local assert = require('assert')
-local new_samples = require('measure.samples')
+local new_samples = require('measure.samples').new
 local scott_knott_esd = require('measure.posthoc.skesd')
 
 -- Helper function to create samples with specific values

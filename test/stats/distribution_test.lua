@@ -1,7 +1,7 @@
 local testcase = require('testcase')
 local assert = require('assert')
 local distribution = require('measure.stats.distribution')
-local samples = require('measure.samples')
+local new_samples = require('measure.samples').new
 local mock_samples = require('./test/helpers/mock_samples')
 
 -- Import helper function
@@ -177,7 +177,7 @@ function testcase.error_handling()
         cl = 95,
         rciw = 5.0,
     }
-    local empty_samples = samples(empty_data)
+    local empty_samples = new_samples(empty_data)
     assert.throws(function()
         distribution(empty_samples)
     end)
