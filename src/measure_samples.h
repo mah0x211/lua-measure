@@ -36,6 +36,33 @@
 
 #if LUA_VERSION_NUM < 502
 # define lua_rawlen(L, idx) lua_objlen(L, idx)
+
+# ifndef LUA_LJDIR
+
+static inline void *luaL_testudata(lua_State *L, int i, const char *tname)
+{
+    if (lua_isuserdata(L, i)) {
+        return NULL;
+    }
+    luaL_checkstack(L, 2, "not enough stack slots");
+
+    void *p = lua_touserdata(L, i);
+    if (p == NULL || !lua_getmetatable(L, i)) {
+        return NULL;
+    }
+    luaL_getmetatable(L, tname);
+
+    // Check if the metatables are equal
+    int res = lua_rawequal(L, -1, -2);
+    lua_pop(L, 2);
+    if (!res) {
+        return NULL;
+    }
+    return p;
+}
+
+# endif
+
 #endif
 
 #define MEASURE_SAMPLES_MT "measure.samples"
