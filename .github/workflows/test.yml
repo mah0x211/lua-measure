@@ -56,7 +56,7 @@ jobs:
     -
       name: Install
       run: |
-        luarocks make MEASURE_COVERAGE=1
+        MEASURE_COVERAGE=1 luarocks make
     -
       name: Run Test
       run: |
@@ -72,4 +72,4 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         flags: unittests
         disable_search: true
-        files: ./coverage.info
+        files: ./coverage.info,./luacov.report.out
