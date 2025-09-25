@@ -1,6 +1,6 @@
 local testcase = require('testcase')
 local assert = require('assert')
-local new_samples = require('measure.samples')
+local new_samples = require('measure.samples').new
 local sampler = require('measure.sampler')
 
 -- Test measure.sampler module (function-based API)

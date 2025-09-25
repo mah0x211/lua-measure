@@ -1,6 +1,6 @@
 local testcase = require('testcase')
 local assert = require('assert')
-local new_samples = require('measure.samples')
+local new_samples = require('measure.samples').new
 local welch_anova = require('measure.welch_anova')
 
 -- Helper function to create samples with specific values

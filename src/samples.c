@@ -598,6 +598,96 @@ static const char *checklstring(lua_State *L, int idx, size_t *len)
     return lua_tolstring(L, idx, len);
 }
 
+static inline void copy_samples(lua_State *L, measure_samples_t *dst,
+                                measure_samples_t *src)
+{
+    if (src->count > 0) {
+        if (dst->count + src->count > dst->capacity) {
+            luaL_error(L,
+                       "failed to merge samples: total capacity %zu "
+                       "calculated is too small",
+                       dst->capacity);
+        }
+
+        // Copy all data points from this sample in a single block
+        memcpy(dst->data + dst->count, src->data,
+               sizeof(measure_samples_data_t) * src->count);
+
+        // Update combined statistics using Chan/Welford parallel formulas
+        if (dst->count == 0) {
+            dst->mean = src->mean;
+            dst->M2   = src->M2;
+        } else {
+            double delta = src->mean - dst->mean;
+            size_t n1    = dst->count;
+            size_t n2    = src->count;
+            size_t n     = n1 + n2;
+            dst->mean += delta * (double)n2 / (double)n;
+            dst->M2 +=
+                src->M2 + delta * delta * (double)n1 * (double)n2 / (double)n;
+        }
+
+        dst->sum += src->sum;
+        if (src->min < dst->min) {
+            dst->min = src->min;
+        }
+        if (src->max > dst->max) {
+            dst->max = src->max;
+        }
+        dst->count += src->count;
+    }
+}
+
+static int merge_lua(lua_State *L)
+{
+    size_t len                = 0;
+    const char *name          = luaL_checklstring(L, 1, &len);
+    size_t num_samples        = 0;
+    size_t total_capacity     = 0;
+    measure_samples_t *merged = NULL;
+    measure_samples_t *s      = NULL;
+
+    // Check if first argument is a table of samples
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_settop(L, 2);
+    num_samples = lua_rawlen(L, 2);
+    luaL_argcheck(L, num_samples > 0, 2, "table of samples cannot be empty");
+
+    // validate samples and calculate total capacity
+    for (size_t i = 1; i <= num_samples; i++) {
+        lua_rawgeti(L, 2, i);
+        measure_samples_t *item = luaL_testudata(L, -1, MEASURE_SAMPLES_MT);
+        luaL_argcheck(L, item != NULL, 2,
+                      "all elements must be measure.samples objects");
+        total_capacity += item->capacity;
+        if (!s) {
+            s = item;
+        }
+        lua_pop(L, 1);
+    }
+
+    // Create merged sample with combined capacity
+    merged      = new_measure_samples(L, name, len, total_capacity, s->gc_step,
+                                      s->cl, s->rciw);
+    merged->min = UINT64_MAX; // ensure any sample will be less
+    // Move the merged sample to the first argument position
+    lua_replace(L, 1);
+
+    // Merge all sample data
+    for (size_t i = 1; i <= num_samples; i++) {
+        lua_rawgeti(L, 2, i);
+        s = (measure_samples_t *)lua_touserdata(L, -1);
+        copy_samples(L, merged, s);
+        lua_pop(L, 1);
+    }
+
+    if (!merged->count) {
+        merged->min = 0;
+    }
+    lua_settop(L, 1);
+    return 1;
+}
+
 static int new_lua(lua_State *L)
 {
     if (!lua_istable(L, 1)) {
@@ -693,7 +783,11 @@ LUALIB_API int luaopen_measure_samples(lua_State *L)
         lua_pop(L, 1);
     }
 
-    // push the constructor function
+    // push a table containing both constructor and merge functions
+    lua_createtable(L, 0, 2);
     lua_pushcfunction(L, new_lua);
+    lua_setfield(L, -2, "new");
+    lua_pushcfunction(L, merge_lua);
+    lua_setfield(L, -2, "merge");
     return 1;
 }

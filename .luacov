@@ -4,6 +4,9 @@ deletestats = true
 modules = {
     -- define the modules for coverage reporting
     ["measure"] = "lib/measure.lua",
+    ["measure.compare"] = "lib/compare.lua",
+    ["measure.compare.welcht"] = "lib/compare/welcht.lua",
+    ["measure.compare.skesd"] = "lib/compare/skesd.lua",
     ["measure.describe"] = "lib/describe.lua",
     ["measure.getinfo"] = "lib/getinfo.lua",
     ["measure.loadfiles"] = "lib/loadfiles.lua",

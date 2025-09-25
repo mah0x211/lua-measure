@@ -1,7 +1,7 @@
 require('luacov')
 local testcase = require('testcase')
 local assert = require('assert')
-local new_samples = require('measure.samples')
+local new_samples = require('measure.samples').new
 
 -- Test configuration constants
 local STATISTICAL_PRECISION = 1e-4 -- 0.01% relative error tolerance

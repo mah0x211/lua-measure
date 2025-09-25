@@ -1,7 +1,7 @@
 local testcase = require('testcase')
 local assert = require('assert')
 local sampler = require('measure.sampler')
-local new_samples = require('measure.samples')
+local new_samples = require('measure.samples').new
 
 -- Helper function to create valid samples data
 local function create_samples_data(time_values, extra_fields)
