@@ -21,4 +21,5 @@ modules = {
     ["measure.stats"] = "lib/stats.lua",
     ["measure.stats.ci"] = "lib/stats/ci.lua",
     ["measure.stats.summary"] = "lib/stats/summary.lua",
+    ["measure.sysinfo"] = "lib/sysinfo.lua",
 }
