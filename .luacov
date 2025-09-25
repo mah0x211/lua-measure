@@ -18,6 +18,7 @@ modules = {
     ["measure.report.format"] = "lib/report/format.lua",
     ["measure.report.table"] = "lib/report/table.lua",
     ["measure.spec"] = "lib/spec.lua",
+    ["measure.stats"] = "lib/stats.lua",
     ["measure.stats.ci"] = "lib/stats/ci.lua",
     ["measure.stats.summary"] = "lib/stats/summary.lua",
 }
