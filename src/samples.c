@@ -246,67 +246,76 @@ static int count_lua(lua_State *L)
 static int memstat_lua(lua_State *L)
 {
     measure_samples_t *samples = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
-    size_t total_allocation    = 0;   // Total memory allocated in KB
-    size_t peak_memory         = 0;   // Peak memory usage in KB
-    double allocation_rate     = 0.0; // KB/op
-    double memory_efficiency   = 0.0; // Useful work vs allocation ratio
-    double gc_impact           = NAN; // Correlation between GC and time
-    double mean_time           = samples->mean; // Mean time in ns
-    double num                 = 0.0;           // Numerator for correlation
-    double den_time            = 0.0;           // Denominator for time
-    double den_alloc           = 0.0;           // Denominator for allocation
+    struct {
+        size_t peak;         // Peak memory usage in KB
+        double alloc_op;     // Memory allocation per operation (KB/op)
+        double uncollected;  // Uncollected memory growth (KB)
+        double avg_incr;     // Average memory change per sample (KB)
+        double max_alloc_op; // Maximum allocation per operation (KB/op)
+    } memstat = {0};
 
-    if (samples->count == 0) {
-        goto CREATE_RESULT;
-    }
+    if (samples->count > 0) {
+        double total_increase = 0.0;
 
-// Macro to calculate correlation terms for a sample at given index
-#define CALC_CORRELATION_TERMS(idx)                                            \
+        memstat.alloc_op = (double)samples->sum_allocated_kb / samples->count;
+
+#define CALC_METRICS(idx)                                                      \
     do {                                                                       \
-        /* Update total allocation and peak memory */                          \
-        total_allocation += samples->data[idx].allocated_kb;                   \
-        if (samples->data[idx].after_kb > peak_memory) {                       \
-            peak_memory = samples->data[idx].after_kb;                         \
+        /* Update peak memory */                                               \
+        if (samples->data[idx].after_kb > memstat.peak) {                      \
+            memstat.peak = samples->data[idx].after_kb;                        \
         }                                                                      \
-                                                                               \
-        double dt = (double)samples->data[idx].time_ns - mean_time;            \
-        double da = (double)samples->data[idx].allocated_kb -                  \
-                    (double)total_allocation / samples->count;                 \
-        num += dt * da;                                                        \
-        den_time += dt * dt;                                                   \
-        den_alloc += da * da;                                                  \
+        /* Track maximum allocation per operation */                           \
+        if ((double)samples->data[idx].allocated_kb > memstat.max_alloc_op) {  \
+            memstat.max_alloc_op = (double)samples->data[idx].allocated_kb;    \
+        }                                                                      \
     } while (0)
 
-    // Calculate correlation terms for first sample
-    CALC_CORRELATION_TERMS(0);
-    // Calculate allocation metrics and correlation in a single loop
-    for (size_t i = 1; i < samples->count; i++) {
-        // Calculate correlation terms
-        CALC_CORRELATION_TERMS(i);
-    }
+        // calculate metrics
+        CALC_METRICS(0);
+        for (size_t i = 1; i < samples->count; i++) {
+            CALC_METRICS(i);
+            // Memory change calculations
+            double increase = (double)samples->data[i].before_kb -
+                              (double)samples->data[i - 1].before_kb;
+            total_increase += increase;
+        }
 
 // Clean up macro
-#undef CALC_CORRELATION_TERMS
+#undef CALC_METRICS
 
-    allocation_rate   = (double)total_allocation / samples->count;
-    // Memory efficiency: inverse of allocation rate (higher is better)
-    memory_efficiency = (allocation_rate > 0.0) ? 1.0 / allocation_rate : 0.0;
+        // Calculate final memory leak detection metrics
+        if (samples->count > 1) {
+            // Uncollected memory: absolute change from first to last sample
+            // (KB) Only count increases (potential leaks), not decreases (GC
+            // effects)
+            double memory_change =
+                (double)samples->data[samples->count - 1].before_kb -
+                (double)samples->data[0].before_kb;
+            if (memory_change > 0.0) {
+                memstat.uncollected = memory_change;
+            }
 
-    // Calculate final correlation coefficient
-    if (den_time > 0.0 && den_alloc > 0.0) {
-        gc_impact = num / sqrt(den_time * den_alloc);
+            // Average memory change per sample (total_increase already
+            // calculated in loop)
+            memstat.avg_incr = total_increase / (samples->count - 1);
+        }
     }
 
-CREATE_RESULT:
-    lua_createtable(L, 0, 4);
-    lua_pushnumber(L, allocation_rate);
-    lua_setfield(L, -2, "allocation_rate");
-    lua_pushnumber(L, gc_impact);
-    lua_setfield(L, -2, "gc_impact");
-    lua_pushnumber(L, memory_efficiency);
-    lua_setfield(L, -2, "memory_efficiency");
-    lua_pushinteger(L, peak_memory);
+    lua_createtable(L, 0, 5);
+    lua_pushnumber(L, memstat.alloc_op);
+    lua_setfield(L, -2, "alloc_op");
+    lua_pushinteger(L, memstat.peak);
     lua_setfield(L, -2, "peak_memory");
+
+    // Memory leak detection fields
+    lua_pushnumber(L, memstat.uncollected);
+    lua_setfield(L, -2, "uncollected");
+    // Cap avg_incr at 0 - negative values indicate GC effects, not leaks
+    lua_pushnumber(L, memstat.avg_incr > 0.0 ? memstat.avg_incr : 0.0);
+    lua_setfield(L, -2, "avg_incr");
+    lua_pushnumber(L, memstat.max_alloc_op);
+    lua_setfield(L, -2, "max_alloc_op");
 
     return 1;
 }
@@ -405,8 +414,8 @@ static int gc_lua(lua_State *L)
 }
 
 /**
- * Create a new measure_samples_t userdata object with the specified capacity
- * and GC step size.
+ * Create a new measure_samples_t userdata object with the specified
+ * capacity and GC step size.
  *
  * @param L Lua state
  * @param name Name of the sample (e.g., "sample1", "sample2")

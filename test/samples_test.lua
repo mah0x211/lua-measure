@@ -1574,19 +1574,17 @@ function testcase.memstat()
     -- Verify result structure
     local stat = s:memstat()
     assert.is_table(stat)
-    assert.is_number(stat.allocation_rate)
-    assert.is_number(stat.gc_impact)
-    assert.is_number(stat.memory_efficiency)
+    assert.is_number(stat.alloc_op)
     assert.is_number(stat.peak_memory)
+    assert.is_number(stat.uncollected)
+    assert.is_number(stat.avg_incr)
+    assert.is_number(stat.max_alloc_op)
 
     -- Allocation rate should be average of allocated_kb
-    assert.equal(stat.allocation_rate, 40.0) -- (20+30+40+50+60)/5 = 40
+    assert.equal(stat.alloc_op, 40.0) -- (20+30+40+50+60)/5 = 40
 
     -- Peak memory should be maximum after_kb
     assert.equal(stat.peak_memory, 360)
-
-    -- Memory efficiency should be inverse of allocation rate
-    assert.less(math.abs(stat.memory_efficiency - 1.0 / 40.0), 0.001)
 
     -- Test allocation rate calculation
     s = create_samples_data({
@@ -1607,10 +1605,7 @@ function testcase.memstat()
     })
     stat = s:memstat()
     -- Average allocation should be (50+50+50)/3 = 50
-    assert.equal(stat.allocation_rate, 50.0)
-
-    -- Memory efficiency should be 1 / allocation_rate
-    assert.equal(stat.memory_efficiency, 0.02)
+    assert.equal(stat.alloc_op, 50.0)
 
     -- Test peak memory detection
     s = create_samples_data({
@@ -1636,7 +1631,7 @@ function testcase.memstat()
     -- Peak memory should be 250
     assert.equal(stat.peak_memory, 250)
 
-    -- Test GC impact correlation
+    -- Test allocation overhead correlation
     -- Create scenario where high allocation correlates with high execution time
     s = create_samples_data({
         1000,
@@ -1659,8 +1654,8 @@ function testcase.memstat()
         },
     })
     stat = s:memstat()
-    -- GC impact should show positive correlation (allocation increases with time)
-    assert.greater(stat.gc_impact, 0)
+    -- Allocation should increase with time
+    assert.greater(stat.alloc_op, 0)
 
     -- Test with zero allocation
     s = create_samples_data({
@@ -1681,10 +1676,12 @@ function testcase.memstat()
     })
     stat = s:memstat()
     -- Allocation rate should be 0
-    assert.equal(stat.allocation_rate, 0.0)
+    assert.equal(stat.alloc_op, 0.0)
 
-    -- Memory efficiency should be 0 (since allocation_rate is 0)
-    assert.equal(stat.memory_efficiency, 0.0)
+    -- Other metrics should be 0 or reasonable defaults
+    assert.equal(stat.avg_incr, 0.0)
+    assert.equal(stat.uncollected, 0.0)
+    assert.equal(stat.max_alloc_op, 0.0)
 
     -- Peak memory should be 100
     assert.equal(stat.peak_memory, 100)
@@ -1708,11 +1705,8 @@ function testcase.memstat()
         },
     })
     stat = s:memstat()
-    -- GC impact should be 0 (no correlation)
-    assert.equal(stat.gc_impact, 0.0)
-
-    -- Allocation rate should be 50
-    assert.equal(stat.allocation_rate, 50.0)
+    -- Allocation per operation should be 50
+    assert.equal(stat.alloc_op, 50.0)
 end
 
 function testcase.capacity_increase()
