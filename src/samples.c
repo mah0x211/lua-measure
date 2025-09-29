@@ -250,39 +250,54 @@ static int memstat_lua(lua_State *L)
     size_t peak_memory         = 0;   // Peak memory usage in KB
     double allocation_rate     = 0.0; // KB/op
     double memory_efficiency   = 0.0; // Useful work vs allocation ratio
-    double gc_impact           = 0.0; // Correlation between GC and time
+    double gc_impact           = NAN; // Correlation between GC and time
+    double mean_time           = samples->mean; // Mean time in ns
+    double num                 = 0.0;           // Numerator for correlation
+    double den_time            = 0.0;           // Denominator for time
+    double den_alloc           = 0.0;           // Denominator for allocation
 
-    // calculate total allocation and peak memory
-    for (size_t i = 0; i < samples->count; i++) {
-        total_allocation += samples->data[i].allocated_kb;
-        if (samples->data[i].after_kb > peak_memory) {
-            peak_memory = samples->data[i].after_kb;
-        }
+    if (samples->count == 0) {
+        goto CREATE_RESULT;
     }
+
+// Macro to calculate correlation terms for a sample at given index
+#define CALC_CORRELATION_TERMS(idx)                                            \
+    do {                                                                       \
+        /* Update total allocation and peak memory */                          \
+        total_allocation += samples->data[idx].allocated_kb;                   \
+        if (samples->data[idx].after_kb > peak_memory) {                       \
+            peak_memory = samples->data[idx].after_kb;                         \
+        }                                                                      \
+                                                                               \
+        double dt = (double)samples->data[idx].time_ns - mean_time;            \
+        double da = (double)samples->data[idx].allocated_kb -                  \
+                    (double)total_allocation / samples->count;                 \
+        num += dt * da;                                                        \
+        den_time += dt * dt;                                                   \
+        den_alloc += da * da;                                                  \
+    } while (0)
+
+    // Calculate correlation terms for first sample
+    CALC_CORRELATION_TERMS(0);
+    // Calculate allocation metrics and correlation in a single loop
+    for (size_t i = 1; i < samples->count; i++) {
+        // Calculate correlation terms
+        CALC_CORRELATION_TERMS(i);
+    }
+
+// Clean up macro
+#undef CALC_CORRELATION_TERMS
+
     allocation_rate   = (double)total_allocation / samples->count;
     // Memory efficiency: inverse of allocation rate (higher is better)
     memory_efficiency = (allocation_rate > 0.0) ? 1.0 / allocation_rate : 0.0;
 
-    // Calculate correlation between allocation and time
-    if (samples->count) {
-        double mean_time  = samples->mean;
-        double mean_alloc = allocation_rate;
-        double num = 0.0, den_time = 0.0, den_alloc = 0.0;
-        for (size_t i = 0; i < samples->count; i++) {
-            double dt = (double)samples->data[i].time_ns - mean_time;
-            double da = (double)samples->data[i].allocated_kb - mean_alloc;
-            num += dt * da;
-            den_time += dt * dt;
-            den_alloc += da * da;
-        }
-        // If both denominators are non-zero, calculate the correlation
-        if (den_time > 0.0 && den_alloc > 0.0) {
-            gc_impact = num / sqrt(den_time * den_alloc);
-        }
-    } else {
-        gc_impact = NAN; // No samples, no correlation
+    // Calculate final correlation coefficient
+    if (den_time > 0.0 && den_alloc > 0.0) {
+        gc_impact = num / sqrt(den_time * den_alloc);
     }
 
+CREATE_RESULT:
     lua_createtable(L, 0, 4);
     lua_pushnumber(L, allocation_rate);
     lua_setfield(L, -2, "allocation_rate");
