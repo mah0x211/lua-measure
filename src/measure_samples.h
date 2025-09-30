@@ -75,20 +75,21 @@ typedef struct {
 } measure_samples_data_t;
 
 typedef struct {
-    int saved_gc_pause;   // Saved GC pause value
-    int saved_gc_stepmul; // Saved GC step multiplier value
-    size_t capacity;      // capacity of the samples array
-    size_t count;         // number of samples collected
-    size_t base_kb;       // Memory usage at start (after initial GC)
-    double cl;            // confidence  level (e.g., 95.0%)
-    double rciw;          // relative confidence interval width (e.g., 5.0%)
-    uint64_t sum;         // sum of all sample times in nanoseconds
-    uint64_t min;         // minimum sample time in nanoseconds
-    uint64_t max;         // maximum sample time in nanoseconds
-    double M2;            // sum of squares about the mean (Welford's method)
-    double mean;          // mean of the samples
-    int gc_step;          // GC step size in KB (0 for full GC)
-    int ref_data;         // reference to Lua data array
+    int saved_gc_pause;      // Saved GC pause value
+    int saved_gc_stepmul;    // Saved GC step multiplier value
+    size_t capacity;         // capacity of the samples array
+    size_t count;            // number of samples collected
+    size_t base_kb;          // Memory usage at start (after initial GC)
+    double cl;               // confidence  level (e.g., 95.0%)
+    double rciw;             // relative confidence interval width (e.g., 5.0%)
+    uint64_t sum;            // sum of all sample times in nanoseconds
+    uint64_t min;            // minimum sample time in nanoseconds
+    uint64_t max;            // maximum sample time in nanoseconds
+    double M2;               // sum of squares about the mean (Welford's method)
+    double mean;             // mean of the samples
+    size_t sum_allocated_kb; // sum of all allocated memory in KB
+    int gc_step;             // GC step size in KB (0 for full GC)
+    int ref_data;            // reference to Lua data array
     measure_samples_data_t *data; // array of samples in nanoseconds
     char name[256]; // Name of the sample (e.g., "sample1", "sample2")
 } measure_samples_t;
@@ -103,12 +104,13 @@ typedef struct {
 static inline void measure_samples_clear(measure_samples_t *s)
 {
     // Clear the samples object
-    s->count = 0;
-    s->sum   = 0;
-    s->min   = UINT64_MAX; // ensure any sample will be less
-    s->max   = 0;
-    s->M2    = 0.0;
-    s->mean  = 0.0;
+    s->count            = 0;
+    s->sum              = 0;
+    s->min              = UINT64_MAX; // ensure any sample will be less
+    s->max              = 0;
+    s->M2               = 0.0;
+    s->mean             = 0.0;
+    s->sum_allocated_kb = 0;
     memset(s->data, 0, sizeof(measure_samples_data_t) * s->capacity);
     s->base_kb = 0;
 }
@@ -235,6 +237,8 @@ static inline int measure_samples_update_sample_ex(measure_samples_t *s,
     if (data->after_kb > data->before_kb) {
         data->allocated_kb = data->after_kb - data->before_kb;
     }
+    // Update sum of allocated memory
+    s->sum_allocated_kb += data->allocated_kb;
     // Update sum, min, max, and mean
     s->sum += elapsed;
     if (elapsed < s->min) {

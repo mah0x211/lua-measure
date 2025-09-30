@@ -23,81 +23,84 @@
 -- Provides high-quality output formatting similar to Criterion.rs and BenchmarkDotNet
 local format = string.format
 local concat = table.concat
+local sort = table.sort
 local stats = require('measure.stats')
 local sysinfo = require('measure.sysinfo')
 local table_utils = require('measure.report.table')
 local fmt = require('measure.report.format')
 local print = require('measure.print')
 
+local DIV = string.rep('=', 80)
+
 -- Format system information for display (compact format)
 local function format_sysinfo(info)
     local lines = {}
 
     -- Header
-    table.insert(lines, 'Environment Information')
-    table.insert(lines, string.rep('=', 80))
+    lines[#lines + 1] = 'Environment Information'
+    lines[#lines + 1] = DIV
 
     -- Hardware line: CPU, cores, total memory (exclude available memory)
     local hw_parts = {}
     if info.cpu.model then
-        table.insert(hw_parts, info.cpu.model)
+        hw_parts[#hw_parts + 1] = info.cpu.model
     end
     if info.cpu.cores and info.cpu.threads then
-        table.insert(hw_parts, format('%d cores (%d threads)', info.cpu.cores,
-                                      info.cpu.threads))
+        hw_parts[#hw_parts + 1] = format('%d cores (%d threads)',
+                                         info.cpu.cores, info.cpu.threads)
     end
     if info.memory.total then
-        table.insert(hw_parts, info.memory.total)
+        hw_parts[#hw_parts + 1] = info.memory.total
     end
     if #hw_parts > 0 then
-        table.insert(lines, 'Hardware: ' .. table.concat(hw_parts, ', '))
+        lines[#lines + 1] = 'Hardware: ' .. concat(hw_parts, ', ')
     end
 
     -- Host line: OS, version, arch, kernel version
     local host_parts = {}
     if info.os.name then
-        table.insert(host_parts, info.os.name)
+        host_parts[#host_parts + 1] = info.os.name
     end
     if info.os.version then
-        table.insert(host_parts, info.os.version)
+        host_parts[#host_parts + 1] = info.os.version
     end
     if info.os.arch then
-        table.insert(host_parts, info.os.arch)
+        host_parts[#host_parts + 1] = info.os.arch
     end
     -- Add kernel version, but extract just the version number for brevity
     if info.os.kernel then
         local kernel_version = info.os.kernel:match('Version ([^:]+)')
         if kernel_version then
-            table.insert(host_parts, format('kernel=%s', kernel_version))
+            host_parts[#host_parts + 1] = format('kernel=%s', kernel_version)
         end
     end
     if #host_parts > 0 then
-        table.insert(lines, '    Host: ' .. table.concat(host_parts, ', '))
+        lines[#lines + 1] = '    Host: ' .. concat(host_parts, ', ')
     end
 
     -- Runtime line: Lua version, JIT status (exclude GC info)
     local runtime_parts = {}
     if info.lua.version then
-        table.insert(runtime_parts, info.lua.version)
+        runtime_parts[#runtime_parts + 1] = info.lua.version
     end
     if info.lua.jit then
-        table.insert(runtime_parts,
-                     format('JIT=%s', info.lua.jit_status or 'unknown'))
+        runtime_parts[#runtime_parts + 1] = format('JIT=%s',
+                                                   info.lua.jit_status or
+                                                       'unknown')
     else
-        table.insert(runtime_parts, 'no-JIT')
+        runtime_parts[#runtime_parts + 1] = 'no-JIT'
     end
     if #runtime_parts > 0 then
-        table.insert(lines, ' Runtime: ' .. table.concat(runtime_parts, ', '))
+        lines[#lines + 1] = ' Runtime: ' .. concat(runtime_parts, ', ')
     end
 
     -- Date line
     if info.timestamp then
-        table.insert(lines, '    Date: ' .. info.timestamp)
+        lines[#lines + 1] = '    Date: ' .. info.timestamp
     end
 
-    table.insert(lines, string.rep('=', 80))
-
-    return table.concat(lines, '\n')
+    lines[#lines + 1] = DIV
+    return concat(lines, '\n')
 end
 
 -- Helper function to find sample by name
@@ -160,24 +163,6 @@ local function calculate_relative_performance(sample_mean, baseline_mean)
     end
 end
 
--- Calculate relative memory usage vs baseline
-local function calculate_relative_memory(sample_memory, baseline_memory)
-    if baseline_memory <= 0 then
-        return "N/A"
-    end
-
-    local ratio = sample_memory / baseline_memory
-    local percentage = (ratio - 1) * 100
-
-    if math.abs(percentage) < 0.1 then
-        return "0.0% more memory"
-    elseif percentage > 0 then
-        return format("%.1f%% more memory", percentage)
-    else
-        return format("%.1f%% less memory", -percentage)
-    end
-end
-
 local function create_rankings(samples, groups)
     local rankings = {
         by_time_simple = {},
@@ -198,7 +183,7 @@ local function create_rankings(samples, groups)
             mean = info.mean,
         }
     end
-    table.sort(ordered, function(a, b)
+    sort(ordered, function(a, b)
         if a.mean == b.mean then
             return a.name < b.name
         end
@@ -270,7 +255,7 @@ local function create_rankings(samples, groups)
             }
         end
     end
-    table.sort(by_memory, function(a, b)
+    sort(by_memory, function(a, b)
         if a.value == b.value then
             return a.name < b.name
         end
@@ -287,7 +272,7 @@ local function create_rankings(samples, groups)
             value = info.ci_width or math.huge,
         }
     end
-    table.sort(by_reliability, function(a, b)
+    sort(by_reliability, function(a, b)
         if a.value == b.value then
             return a.name < b.name
         end
@@ -412,7 +397,7 @@ local function print_performance_ranking_scott_knott_esd(results)
             local peers = {}
             for _, member in ipairs(group_members) do
                 if member ~= name then
-                    table.insert(peers, member)
+                    peers[#peers + 1] = member
                 end
             end
             if #peers > 0 then
@@ -555,34 +540,94 @@ local function print_performance_ranking(results)
     end
 end
 
--- Print memory efficiency ranking table
-local function print_memory_ranking(results)
+-- Print detailed memory analysis table
+local function print_memory_analysis(samples_list)
     -- Create table directly with new interface
-    local tbl = table_utils.new_table(
-                    "Memory Efficiency Ranking (Primary=Memory per Op)", nil)
+    local tbl = table_utils.new_table("Memory Analysis",
+                                      "Note: Sorted by allocation rate (lower is better).")
 
     -- Add columns
-    tbl:add_column("Rank", true)
     tbl:add_column("Name")
-    tbl:add_column("Primary", true)
-    tbl:add_column("Relative")
+    tbl:add_column("Samples", true)
+    tbl:add_column("Max Alloc", true)
+    tbl:add_column("Alloc Rate", true)
+    tbl:add_column("Rel.")
+    tbl:add_column("Peak Memory", true)
+    tbl:add_column("Uncollected", true)
+    tbl:add_column("Avg Incr.", true)
 
-    local baseline_name = results.rankings.by_memory[1]
-    local baseline = find_sample(results.samples, baseline_name)
+    -- Sort samples by allocation rate (descending)
+    local sorted_samples = {}
+    for _, sample in ipairs(samples_list) do
+        local memstat = sample:memstat()
+        local alloc_rate = memstat and memstat.alloc_op or 0
+        sorted_samples[#sorted_samples + 1] = {
+            sample = sample,
+            alloc_rate = alloc_rate,
+        }
+    end
 
-    -- Add data rows directly
-    for rank, name in ipairs(results.rankings.by_memory) do
-        local sample = find_sample(results.samples, name)
-        local relative = rank == 1 and "baseline" or
-                             calculate_relative_memory(sample.memory_per_op,
-                                                       baseline.memory_per_op)
+    sort(sorted_samples, function(a, b)
+        return a.alloc_rate < b.alloc_rate
+    end)
 
-        tbl:add_rows({
-            tostring(rank),
-            name,
-            fmt.memory(sample.memory_per_op),
-            relative,
-        })
+    -- Get baseline (first/best sample) for relative calculation
+    local baseline_alloc_rate = sorted_samples[1] and
+                                    sorted_samples[1].alloc_rate or 1
+
+    -- Add data rows directly using sorted samples
+    for rank, entry in ipairs(sorted_samples) do
+        local sample = entry.sample
+        local name = sample:name()
+        local memstat = sample:memstat()
+
+        if memstat then
+            local sample_count = tostring(#sample)
+            local max_alloc_op =
+                (memstat.max_alloc_op and memstat.max_alloc_op ==
+                    memstat.max_alloc_op) and fmt.memory(memstat.max_alloc_op) ..
+                    '/op' or "N/A"
+            local alloc_rate =
+                memstat.alloc_op and fmt.memory(memstat.alloc_op) .. "/op" or
+                    "N/A"
+
+            -- Calculate relative memory usage
+            local relative = "1.0x"
+            if rank > 1 and baseline_alloc_rate > 0 then
+                local ratio = entry.alloc_rate / baseline_alloc_rate
+                relative = format("%.1fx", ratio)
+            end
+            local peak_memory = memstat.peak_memory and
+                                    fmt.memory(memstat.peak_memory) or "N/A"
+            local uncollected = (memstat.uncollected and memstat.uncollected ==
+                                    memstat.uncollected) and
+                                    fmt.memory(memstat.uncollected) or "N/A"
+            local avg_incr = (memstat.avg_incr and memstat.avg_incr ==
+                                 memstat.avg_incr) and
+                                 fmt.memory(memstat.avg_incr) .. "/op" or "N/A"
+
+            tbl:add_rows({
+                name,
+                sample_count,
+                max_alloc_op,
+                alloc_rate,
+                relative,
+                peak_memory,
+                uncollected,
+                avg_incr,
+            })
+        else
+            tbl:add_rows({
+                name,
+                "N/A",
+                "N/A",
+                "N/A",
+                "N/A",
+                "N/A",
+                "N/A",
+                "N/A",
+            })
+        end
     end
 
     print(concat(tbl:render(), '\n'))
@@ -651,15 +696,15 @@ local function print_measurement_reliability_analysis(results)
     local reliability_samples = {}
     for _, name in ipairs(results.rankings.by_time) do
         local sample = find_sample(results.samples, name)
-        table.insert(reliability_samples, {
+        reliability_samples[#reliability_samples + 1] = {
             name = name,
             sample = sample,
             rciw = sample.rciw or 999.0, -- Use high value for missing RCIW
-        })
+        }
     end
 
     -- Sort by RCIW (lower is better = more reliable)
-    table.sort(reliability_samples, function(a, b)
+    sort(reliability_samples, function(a, b)
         return a.rciw < b.rciw
     end)
 
@@ -787,6 +832,9 @@ local function print_comparison(samples_list)
     -- Print sampling details before any analysis
     print_sampling_details(samples_list)
 
+    -- Print memory analysis
+    print_memory_analysis(samples_list)
+
     -- Build comparison and ranking results
     local results = build_comparison_results(samples_list)
 
@@ -794,18 +842,18 @@ local function print_comparison(samples_list)
     print_summary_statistics(results)
 
     if #results.summaries > 1 then
-        -- Print method information (explains statistical analysis approach)
-        print_method_information(results, samples_list)
-
         -- Print measurement reliability analysis (statistical quality assessment)
         print_measurement_reliability_analysis(results)
 
-        -- Print detailed statistical analysis results
-        print_performance_ranking(results)
+        -- Print detailed statistical analysis results (only if clustering occurred)
+        local num_clusters = results.groups and #results.groups or #results.summaries
+        local num_samples = #results.summaries
+        if num_clusters < num_samples then
+            -- Print method information (explains statistical analysis approach)
+            print_method_information(results, samples_list)
+            print_performance_ranking(results)
+        end
     end
-
-    -- Print memory ranking last
-    print_memory_ranking(results)
 end
 
 -- Export the module
