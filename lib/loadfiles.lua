@@ -114,9 +114,8 @@ local function loadfiles(pathname)
                 print(format('> ignore an invalid entry %s for %s', k, filename))
             else
                 -- check if the spec is valid
-                local errs
-                ok, errs = spec:verify_describes()
-                if not ok then
+                local errs = spec:verify_describes()
+                if errs then
                     print(format('> ignore an invalid spec %s', filename))
                     print('> ' .. concat(errs, '\n> '))
                 else
