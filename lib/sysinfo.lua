@@ -21,6 +21,11 @@
 --
 -- sysinfo.lua: System information gathering module
 -- Collects information about the host environment, including CPU, memory, OS, and Lua runtime
+local date = os.date
+local difftime = os.difftime
+local time = os.time
+local abs = math.abs
+local floor = math.floor
 local open = io.open
 local popen = io.popen
 local format = require('string.format')
@@ -365,16 +370,43 @@ local function get_lua_info()
     return info
 end
 
+--- Get current local time in ISO 8601 format with timezone
+--- @return string Local time in ISO 8601 format with timezone offset
+local function iso8601_local()
+    -- Get current local time
+    local t = time()
+    -- Local time ISO 8601 string (without timezone)
+    local local_str = date('%Y-%m-%dT%H:%M:%S', t)
+
+    -- UTC time
+    local localdate = date('*t', t)
+    local utcdate = date('!*t', t)
+    -- Local to UTC difference (in seconds)
+    -- Note: Use "same timestamp" to get local/UTC correctly for daylight saving time, etc.
+    local diff = difftime(time(localdate), time(utcdate))
+
+    -- Sign, hours, and minutes decomposition
+    local sign = diff >= 0 and '+' or '-'
+    diff = abs(diff)
+    local hours = floor(diff / 3600)
+    local minutes = floor((diff % 3600) / 60)
+
+    -- Zero padding
+    local tz = format('%s%02d:%02d', sign, hours, minutes)
+    return local_str .. tz
+end
+
 -- Cache for system information to avoid repeated expensive operations
 local CACHED_INFO = nil
 
 --- Get all system information with caching
 --- @return table Complete system information including os, cpu, memory, lua, and timestamp
 local function get_all()
+    local timestamp = iso8601_local()
     -- Return cached information if already collected
     if CACHED_INFO then
         -- Only update timestamp for each call
-        CACHED_INFO.timestamp = os.date('%Y-%m-%d %H:%M:%S')
+        CACHED_INFO.timestamp = timestamp
         return CACHED_INFO
     end
 
@@ -384,7 +416,7 @@ local function get_all()
         cpu = get_cpu_info(),
         memory = get_memory_info(),
         lua = get_lua_info(),
-        timestamp = os.date('%Y-%m-%d %H:%M:%S'),
+        timestamp = timestamp,
     }
 
     return CACHED_INFO
