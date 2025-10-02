@@ -258,9 +258,8 @@ function testcase.verify_describes_with_valid_run_function()
     end)
 
     -- Verify should succeed
-    local ok, err = spec:verify_describes()
-    assert.is_true(ok)
-    assert.is_nil(err)
+    local errs = spec:verify_describes()
+    assert.is_nil(errs)
 end
 
 function testcase.verify_describes_with_valid_run_with_timer_function()
@@ -273,9 +272,8 @@ function testcase.verify_describes_with_valid_run_with_timer_function()
     end)
 
     -- Verify should succeed
-    local ok, err = spec:verify_describes()
-    assert.is_true(ok)
-    assert.is_nil(err)
+    local errs = spec:verify_describes()
+    assert.is_nil(errs)
 end
 
 function testcase.verify_describes_with_both_run_functions()
@@ -294,9 +292,8 @@ function testcase.verify_describes_with_both_run_functions()
     end)
 
     -- Verify should succeed
-    local ok, err = spec:verify_describes()
-    assert.is_true(ok)
-    assert.is_nil(err)
+    local errs = spec:verify_describes()
+    assert.is_nil(errs)
 end
 
 function testcase.verify_describes_without_run_functions()
@@ -306,8 +303,7 @@ function testcase.verify_describes_without_run_functions()
     spec:new_describe('Test without run')
 
     -- Verify should fail
-    local ok, errs = spec:verify_describes()
-    assert.is_false(ok)
+    local errs = spec:verify_describes()
     assert.is_table(errs)
     assert.equal(#errs, 1)
     -- Error message should contain source file and line number
@@ -325,8 +321,7 @@ function testcase.verify_describes_with_multiple_invalid_describes()
     spec:new_describe('Invalid 3')
 
     -- Verify should fail with multiple errors
-    local ok, errs = spec:verify_describes()
-    assert.is_false(ok)
+    local errs = spec:verify_describes()
     assert.is_table(errs)
     assert.equal(#errs, 3)
     assert.match(errs[1],
@@ -344,9 +339,8 @@ function testcase.verify_describes_with_empty_describes()
     local spec = new_spec()
 
     -- Verify with no describes should succeed
-    local ok, err = spec:verify_describes()
-    assert.is_true(ok)
-    assert.is_nil(err)
+    local errs = spec:verify_describes()
+    assert.is_nil(errs)
 end
 
 function testcase.verify_describes_with_mixed_valid_and_invalid()
@@ -368,8 +362,7 @@ function testcase.verify_describes_with_mixed_valid_and_invalid()
     end)
 
     -- Verify should fail with only invalid describe error
-    local ok, errs = spec:verify_describes()
-    assert.is_false(ok)
+    local errs = spec:verify_describes()
     assert.is_table(errs)
     assert.equal(#errs, 1)
     assert.match(errs[1],

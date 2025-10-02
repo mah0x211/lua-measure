@@ -74,9 +74,8 @@ function Spec:set_hook(name, fn)
     return true
 end
 
---- Verify the last describe object
---- @return boolean ok true if the last describe has a valid run function
---- @return string[]? err Error message if the last describe is invalid
+--- Verify the describes in the spec
+--- @return string[]? errs Error message if the last describe is invalid
 function Spec:verify_describes()
     local errs = {}
     for _, desc in ipairs(self.describes) do
@@ -90,12 +89,8 @@ function Spec:verify_describes()
         end
     end
 
-    if #errs > 0 then
-        -- Return all collected errors as a single string
-        return false, errs
-    end
-
-    return true
+    -- Return all collected errors as a single string
+    return #errs > 0 and errs or nil
 end
 
 --- Create a new describe object
