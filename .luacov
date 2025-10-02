@@ -9,6 +9,7 @@ modules = {
     ["measure.compare.skesd"] = "lib/compare/skesd.lua",
     ["measure.describe"] = "lib/describe.lua",
     ["measure.getinfo"] = "lib/getinfo.lua",
+    ["measure.listfiles"] = "lib/listfiles.lua",
     ["measure.loadfiles"] = "lib/loadfiles.lua",
     ["measure.metatable"] = "lib/metatable.lua",
     ["measure.options"] = "lib/options.lua",
