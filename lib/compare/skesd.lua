@@ -37,18 +37,21 @@ local function create_skesd_groups(skesd_results)
 
     -- Transform Scott-Knott ESD cluster results into standardized group format
     for rank, cluster in ipairs(skesd_results) do
-        local group_names = {}
-        -- Extract sample names from each cluster
-        for _, sample in ipairs(cluster.samples) do
-            group_names[#group_names + 1] = sample:name()
-        end
-        groups[#groups + 1] = {
-            names = group_names,
+        local names = {}
+        local group = {
+            names = names,
             rank = rank,
             mean = cluster.mean,
             cohen_d = cluster.cohen_d,
             id = cluster.id,
         }
+        groups[#groups + 1] = group
+        -- Extract sample names from each cluster
+        for _, sample in ipairs(cluster.samples) do
+            local name = sample:name()
+            names[#names + 1] = name
+            groups[name] = group -- Map sample name to its group for quick lookup
+        end
     end
 
     return groups
@@ -57,7 +60,7 @@ end
 --- Generate statistically rigorous pairwise comparisons between Scott-Knott ESD clusters
 --- Uses Welch's t-test on cluster aggregate data for actual statistical significance testing
 --- @param skesd_results table Results from measure.posthoc.skesd clustering
---- @return table comparisons Array of pairwise comparisons between clusters
+--- @return table comparisons Array and hash map of pairwise comparisons between clusters
 local function create_skesd_comparisons(skesd_results)
     local comparisons = {}
 
@@ -115,7 +118,7 @@ local function create_skesd_comparisons(skesd_results)
                 significance_level = 'p<0.05'
             end
 
-            comparisons[#comparisons + 1] = {
+            local comp_result = {
                 name1 = 'Cluster ' .. cluster1.id,
                 name2 = 'Cluster ' .. cluster2.id,
                 speedup = speedup,
@@ -130,6 +133,20 @@ local function create_skesd_comparisons(skesd_results)
                     cluster2.count,
                 },
             }
+
+            -- Add to array
+            comparisons[#comparisons + 1] = comp_result
+
+            -- Create O(1) access indices (bidirectional)
+            if not comparisons[comp_result.name1] then
+                comparisons[comp_result.name1] = {}
+            end
+            if not comparisons[comp_result.name2] then
+                comparisons[comp_result.name2] = {}
+            end
+
+            comparisons[comp_result.name1][comp_result.name2] = comp_result
+            comparisons[comp_result.name2][comp_result.name1] = comp_result
         end
     end
 
