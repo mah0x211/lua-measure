@@ -31,7 +31,7 @@ local welcht = require('measure.posthoc.welcht')
 
 --- Convert Welch t-test results to comparison format
 --- @param welcht_results table Results from measure.posthoc.welcht
---- @return table Array of comparison objects with statistical results
+--- @return table Array and hash map of comparison objects with statistical results
 local function convert_welcht_results(welcht_results)
     local comparisons = {}
 
@@ -57,7 +57,7 @@ local function convert_welcht_results(welcht_results)
             significance_level = 'p<0.05'
         end
 
-        comparisons[#comparisons + 1] = {
+        local comp_result = {
             name1 = sample1:name(),
             name2 = sample2:name(),
             speedup = speedup,
@@ -68,6 +68,20 @@ local function convert_welcht_results(welcht_results)
             significant = result.p_value < 0.05,
             significance_level = significance_level,
         }
+
+        -- Add to array
+        comparisons[#comparisons + 1] = comp_result
+
+        -- Create O(1) access indices (bidirectional)
+        if not comparisons[comp_result.name1] then
+            comparisons[comp_result.name1] = {}
+        end
+        if not comparisons[comp_result.name2] then
+            comparisons[comp_result.name2] = {}
+        end
+
+        comparisons[comp_result.name1][comp_result.name2] = comp_result
+        comparisons[comp_result.name2][comp_result.name1] = comp_result
     end
 
     return comparisons
@@ -134,18 +148,20 @@ local function create_compact_letter_groups(comparisons, samples_list)
                     end
                 end
             end
+
             if #group > 0 then
+                local names = {}
                 group_id = group_id + 1
                 groups[#groups + 1] = {
                     rank = group_id,
-                    names = {},
+                    names = names,
                     members = group,
                 }
                 -- Map sample indices to names for output
                 for _, member_idx in ipairs(group) do
-                    local group_names = groups[#groups].names
-                    group_names[#group_names + 1] =
-                        samples_list[member_idx]:name()
+                    local name = samples_list[member_idx]:name()
+                    names[#names + 1] = name
+                    groups[name] = groups[#groups] -- Map sample name to its group for quick lookup
                 end
             end
         end

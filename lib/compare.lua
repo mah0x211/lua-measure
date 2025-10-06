@@ -25,8 +25,14 @@
 local welcht_compare = require('measure.compare.welcht')
 local skesd_compare = require('measure.compare.skesd')
 
+--- @class measure.compare.result.method
+--- @field name string Name of the comparison method
+--- @field algorithm string Algorithm used
+--- @field description string Description of the method
+--- @field clustering string Clustering information
+
 --- @class measure.compare.result
---- @field method string
+--- @field method measure.compare.result.method
 --- @field groups table
 --- @field pairs table
 
@@ -34,6 +40,21 @@ local skesd_compare = require('measure.compare.skesd')
 --- @param sample measure.samples
 --- @return measure.compare.result
 local function create_single_sample_result(sample)
+    local name = sample:name()
+    local groups = {
+        {
+            rank = 1,
+            names = {
+                name,
+            },
+            members = {
+                1,
+            },
+            mean = sample:mean(),
+        },
+    }
+    groups[name] = groups[1] -- name to group mapping
+
     return {
         method = {
             name = "Single sample summary",
@@ -42,18 +63,7 @@ local function create_single_sample_result(sample)
             clustering = "single group (no statistical comparison)",
         },
         pairs = {},
-        groups = {
-            {
-                rank = 1,
-                names = {
-                    sample:name(),
-                },
-                members = {
-                    1,
-                },
-                mean = sample:mean(),
-            },
-        },
+        groups = groups,
     }
 end
 
