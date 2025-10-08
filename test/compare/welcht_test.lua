@@ -55,15 +55,18 @@ function testcase.basic_two_samples()
 
     -- Verify result structure
     assert.is_table(result)
-    assert.is_table(result.method)
+    assert.is_string(result.name)
+    assert.is_string(result.algorithm)
+    assert.is_string(result.description)
+    assert.is_string(result.clustering)
     assert.is_table(result.pairs)
     assert.is_table(result.groups)
 
     -- Verify method information
-    assert.equal(result.method.name, "Welch's t-test with Holm correction")
-    assert.equal(result.method.algorithm, 'welch-t-test-holm-correction')
-    assert.is_string(result.method.description)
-    assert.is_string(result.method.clustering)
+    assert.equal(result.name, "Welch's t-test with Holm correction")
+    assert.equal(result.algorithm, 'welch-t-test-holm-correction')
+    assert.match(result.description, 'adjusted p-values')
+    assert.match(result.clustering, 'compact letter display')
 
     -- Verify single pair comparison for 2 samples
     assert.equal(#result.pairs, 1)

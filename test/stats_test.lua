@@ -49,12 +49,12 @@ function testcase.basic()
     assert.is_table(result.summaries)
     assert.is_table(result.comparison)
     assert.is_table(result.comparison.pairs)
-    assert.is_table(result.comparison.method)
-    assert.is_string(result.comparison.method.name)
+    assert.is_string(result.comparison.name)
+    assert.is_string(result.comparison.algorithm)
     assert.equal(#result.summaries, 2)
-    assert(result.comparison.method.name ==
+    assert(result.comparison.name ==
                "Welch's t-test with Holm correction" or
-               result.comparison.method.name ==
+               result.comparison.name ==
                "Scott-Knott ESD (Effect Size Difference) clustering",
            'method name should be proper method name')
 
@@ -97,7 +97,7 @@ function testcase.single_sample()
     assert.is_table(result.summaries)
     assert.equal(#result.summaries, 1)
     assert.is_table(result.comparison)
-    assert.equal(result.comparison.method.algorithm, 'single-sample')
+    assert.equal(result.comparison.algorithm, 'single-sample')
     assert.equal(#result.comparison.pairs, 0)
     assert.equal(result.summaries[1].name, 'only_one')
 end
@@ -143,7 +143,7 @@ function testcase.multiple_samples()
     local result = stats(samples_list)
 
     assert.equal(#result.summaries, 6)
-    assert.equal(result.comparison.method.name,
+    assert.equal(result.comparison.name,
                  "Scott-Knott ESD (Effect Size Difference) clustering")
     assert.is_table(result.comparison.groups)
 end

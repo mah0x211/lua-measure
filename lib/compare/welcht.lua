@@ -182,12 +182,10 @@ local function welch_t_test(samples_list)
     local groups = create_compact_letter_groups(comparisons, samples_list)
 
     return {
-        method = {
-            name = "Welch's t-test with Holm correction",
-            algorithm = 'welch-t-test-holm-correction',
-            description = "Each sample group is compared against every other sample group with adjusted p-values to control family-wise error rate",
-            clustering = "statistical equivalence (compact letter display)",
-        },
+        name = "Welch's t-test with Holm correction",
+        algorithm = 'welch-t-test-holm-correction',
+        description = "Each sample group is compared against every other sample group with adjusted p-values to control family-wise error rate",
+        clustering = "compact letter display based on statistical significance",
         pairs = comparisons,
         groups = groups,
     }
