@@ -53,14 +53,17 @@ function testcase.basic_two_samples()
     })
 
     assert.is_table(result)
-    assert.is_table(result.method)
+    assert.is_string(result.name)
+    assert.is_string(result.algorithm)
+    assert.is_string(result.description)
+    assert.is_string(result.clustering)
     assert.is_table(result.pairs)
     assert.is_table(result.groups)
-    assert.equal(result.method.name,
+    assert.equal(result.name,
                  "Scott-Knott ESD (Effect Size Difference) clustering")
-    assert.equal(result.method.algorithm, 'scott-knott-esd')
-    assert.is_string(result.method.description)
-    assert.is_string(result.method.clustering)
+    assert.equal(result.algorithm, 'scott-knott-esd')
+    assert.match(result.description, 'multiple comparison problem')
+    assert.match(result.clustering, 'hierarchical clustering')
 
     assert.equal(#result.pairs, 1)
     local pair = result.pairs[1]
@@ -197,7 +200,9 @@ function testcase.single_sample_error()
     else
         -- If it succeeds, verify structure
         assert.is_table(err)
-        assert.is_table(err.method)
+        assert.is_string(err.name)
+        assert.is_string(err.algorithm)
+        assert.is_string(err.description)
         assert.is_table(err.pairs)
         assert.is_table(err.groups)
     end
@@ -214,7 +219,10 @@ function testcase.single_cluster_no_comparisons()
     local result = scott_knott_esd(samples)
 
     assert.is_table(result)
-    assert.is_table(result.method)
+    assert.is_string(result.name)
+    assert.is_string(result.algorithm)
+    assert.is_string(result.description)
+    assert.is_string(result.clustering)
     assert.is_table(result.pairs)
     assert.is_table(result.groups)
 
@@ -313,8 +321,8 @@ function testcase.scott_knott_esd_clustering()
     assert.is_table(result.pairs)
 
     -- Verify method is Scott-Knott ESD
-    assert.equal(result.method.algorithm, 'scott-knott-esd')
-    assert.equal(result.method.name,
+    assert.equal(result.algorithm, 'scott-knott-esd')
+    assert.equal(result.name,
                  "Scott-Knott ESD (Effect Size Difference) clustering")
 
     -- All pairs should be significant in Scott-Knott ESD
@@ -414,16 +422,19 @@ function testcase.output_format_verification()
 
     -- Verify top-level structure
     assert.is_table(result)
-    assert.is_table(result.method)
+    assert.is_string(result.name)
+    assert.is_string(result.algorithm)
+    assert.is_string(result.description)
+    assert.is_string(result.clustering)
     assert.is_table(result.pairs)
     assert.is_table(result.groups)
 
     -- Verify method details
-    assert.equal(result.method.name,
+    assert.equal(result.name,
                  "Scott-Knott ESD (Effect Size Difference) clustering")
-    assert.equal(result.method.algorithm, 'scott-knott-esd')
-    assert.match(result.method.description, 'multiple comparison problem')
-    assert.match(result.method.clustering, 'hierarchical clustering')
+    assert.equal(result.algorithm, 'scott-knott-esd')
+    assert.match(result.description, 'multiple comparison problem')
+    assert.match(result.clustering, 'hierarchical clustering')
 
     -- Verify pairs structure
     for _, pair in ipairs(result.pairs) do

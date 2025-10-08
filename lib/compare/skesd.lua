@@ -44,6 +44,7 @@ local function create_skesd_groups(skesd_results)
             mean = cluster.mean,
             cohen_d = cluster.cohen_d,
             id = cluster.id,
+            count = cluster.count, -- Use pre-calculated total from C code
         }
         groups[#groups + 1] = group
         -- Extract sample names from each cluster
@@ -164,12 +165,10 @@ local function scott_knott_esd(samples_list)
     local comparisons = create_skesd_comparisons(skesd_results)
 
     return {
-        method = {
-            name = "Scott-Knott ESD (Effect Size Difference) clustering",
-            algorithm = 'scott-knott-esd',
-            description = "Statistically similar groups are identified to avoid the multiple comparison problem with large numbers of sample groups",
-            clustering = "hierarchical clustering based on effect size differences",
-        },
+        name = "Scott-Knott ESD (Effect Size Difference) clustering",
+        algorithm = 'scott-knott-esd',
+        description = "Statistically similar groups are identified to avoid the multiple comparison problem with large numbers of sample groups",
+        clustering = "hierarchical clustering based on effect size differences",
         pairs = comparisons,
         groups = groups,
     }
