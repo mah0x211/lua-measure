@@ -40,7 +40,7 @@ function testcase.basic()
     assert.is_number(result.p95)
     assert.is_number(result.p99)
     assert.is_number(result.throughput)
-    assert.is_number(result.memory_per_op)
+    assert.is_table(result.memstat)
 
     -- test CI fields
     assert.is_number(result.ci_lower)
@@ -214,8 +214,8 @@ function testcase.quality_assessment()
     assert(result_large.quality_score >= result_small.quality_score)
 end
 
-function testcase.memory_per_op()
-    -- test memory per operation calculation
+function testcase.memstat()
+    -- test memory statistics
     local s = create_mock_samples({
         1000,
         2000,
@@ -225,6 +225,6 @@ function testcase.memory_per_op()
     })
 
     local result = summary(s)
-    assert.is_number(result.memory_per_op)
-    assert(result.memory_per_op >= 0)
+    assert.is_table(result.memstat)
+    -- memstat is a table returned from samples:memstat()
 end

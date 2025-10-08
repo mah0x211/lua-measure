@@ -30,27 +30,6 @@ function testcase.format_time()
     assert.equal(fmt.time(59999999999), "60.000 s") -- Rounded to 60.000
 end
 
--- Test format_confidence_interval function
-function testcase.format_confidence_interval()
-    -- Test nil and NaN inputs
-    assert.equal(fmt.confidence_interval(nil, 100), "N/A")
-    assert.equal(fmt.confidence_interval(100, nil), "N/A")
-    assert.equal(fmt.confidence_interval(nil, nil), "N/A")
-    assert.equal(fmt.confidence_interval(0 / 0, 100), "N/A") -- NaN mean
-    assert.equal(fmt.confidence_interval(100, 0 / 0), "N/A") -- NaN ci_width
-
-    -- Test valid confidence intervals
-    assert.equal(fmt.confidence_interval(1000000, 200000),
-                 "[900.000 us, 1.100 ms]")
-    assert.equal(fmt.confidence_interval(5000000, 1000000),
-                 "[4.500 ms, 5.500 ms]")
-    assert.equal(fmt.confidence_interval(1000000000, 200000000),
-                 "[900.000 ms, 1.100 s]")
-
-    -- Test edge case with zero width
-    assert.equal(fmt.confidence_interval(1000000, 0), "[1.000 ms, 1.000 ms]")
-end
-
 -- Test format_throughput function
 function testcase.format_throughput()
     -- Test nil and NaN
@@ -164,8 +143,4 @@ function testcase.format_precision()
     -- Test memory precision (2 decimal places)
     assert.equal(fmt.memory(1234), "1.21 MB") -- 1234/1024 = 1.205078125 → 1.21
     assert.equal(fmt.memory(1234567), "1.18 GB") -- 1234567/1048576 = 1.177098274 → 1.18
-
-    -- Test confidence interval combines time formatting
-    assert.equal(fmt.confidence_interval(1234567, 123456),
-                 "[1.173 ms, 1.296 ms]") -- Fixed calculation
 end

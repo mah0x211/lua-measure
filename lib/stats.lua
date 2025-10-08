@@ -25,7 +25,13 @@ local type = type
 local summary = require('measure.stats.summary')
 local compare = require('measure.compare')
 
--- Calculate comprehensive statistics for one or more sample groups
+--- @class measure.stats
+--- @field summaries measure.stat.summary[] A list of statistical summaries for each sample
+--- @field comparison measure.compare.result The result of pairwise comparisons between samples
+
+--- Calculate comprehensive statistics for one or more sample groups
+--- @param samples_list measure.samples[] A list of samples
+--- @return measure.stats A table containing statistical summaries and pairwise comparison results
 local function stats(samples_list)
     if type(samples_list) ~= 'table' or #samples_list < 1 then
         error('stats requires at least 1 sample group')

@@ -48,22 +48,6 @@ local function format_time(nanoseconds)
     return format("%0.3f ns", nanoseconds)
 end
 
---- Format confidence interval like Criterion.rs
---- @param mean number? Mean value in nanoseconds
---- @param ci_width number? Confidence interval width
---- @return string Formatted confidence interval or "N/A"
-local function format_confidence_interval(mean, ci_width)
-    if not mean or not ci_width or mean ~= mean or ci_width ~= ci_width then
-        return "N/A"
-    end
-
-    local half_width = ci_width / 2
-    local lower = mean - half_width
-    local upper = mean + half_width
-
-    return format("[%s, %s]", format_time(lower), format_time(upper))
-end
-
 --- Format throughput in appropriate units
 --- @param operations_per_second number? Operations per second
 --- @return string Formatted throughput or "N/A"
@@ -112,7 +96,6 @@ end
 -- Export module
 return {
     time = format_time,
-    confidence_interval = format_confidence_interval,
     throughput = format_throughput,
     memory = format_memory,
     gc_step = format_gc_step,

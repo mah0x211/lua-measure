@@ -85,21 +85,6 @@ local function assess_quality(ci_quality, outlier_percentage, sample_count)
     return quality, overall_score
 end
 
--- Helper function to calculate memory per operation
-local function calculate_memory_per_op(samples)
-    local sample_data = samples:dump()
-    if not sample_data or sample_data.count == 0 then
-        return 0
-    end
-
-    local total_allocated = 0
-    for i = 1, sample_data.count do
-        total_allocated = total_allocated + (sample_data.allocated_kb[i] or 0)
-    end
-
-    return total_allocated / sample_data.count
-end
-
 --- Helper function to calculate outlier result
 --- @param samples measure.samples An instance of measure.samples
 --- @return table Outlier result containing count, percentage, and indices
@@ -123,9 +108,39 @@ local function calculate_outlier_result(samples)
     }
 end
 
+--- @class measure.stat.summary
+--- @field name string Name of the benchmark
+--- @field mean number Mean execution time
+--- @field median number Median execution time
+--- @field stddev number Standard deviation of execution times
+--- @field variance number Variance of execution times
+--- @field min number Minimum execution time
+--- @field max number Maximum execution time
+--- @field p25 number 25th percentile execution time
+--- @field p75 number 75th percentile execution time
+--- @field p95 number 95th percentile execution time
+--- @field p99 number 99th percentile execution time
+--- @field iqr number Interquartile range (p75 - p25)
+--- @field cv number Coefficient of variation (stddev / mean)
+--- @field throughput number Throughput (operations per second)
+--- @field memstat table Memory statistics (allocated, peak, etc.)
+--- @field ci_lower number Lower bound of the confidence interval
+--- @field ci_upper number Upper bound of the confidence interval
+--- @field ci_width number Width of the confidence interval (ci_upper - ci_lower)
+--- @field ci_level number Confidence level (e.g., 95 for 95%)
+--- @field rciw number Relative confidence interval width (ci_width / mean * 100)
+--- @field ci_quality string Quality of the confidence interval (excellent, good, acceptable, poor)
+--- @field outliers table Outlier statistics (count, percentage, indices)
+--- @field sample_count number Number of samples collected
+--- @field gc_step number Garbage collection step used during sampling
+--- @field cl number Confidence level used during sampling
+--- @field target_rciw number Target relative confidence interval width used during sampling
+--- @field quality string Overall quality assessment (excellent, good, acceptable, poor)
+--- @field quality_score number Overall quality score (0.0 to 1.0)
+
 --- Calculates comprehensive summary statistics from samples
 --- @param samples measure.samples An instance of measure.samples
---- @return table Comprehensive summary statistics containing all key metrics
+--- @return measure.stat.summary summary statistics containing all key metrics
 local function summary(samples)
     local sample_count = #samples
 
@@ -135,8 +150,6 @@ local function summary(samples)
     -- Calculate outliers
     local outliers = calculate_outlier_result(samples)
 
-    -- Calculate memory usage per operation
-    local memory_per_op = calculate_memory_per_op(samples)
     -- Cache percentile calculations to avoid expensive recalculations
     local p25 = samples:percentile(25)
     local p75 = samples:percentile(75)
@@ -159,7 +172,7 @@ local function summary(samples)
         iqr = p75 - p25,
         cv = samples:cv(),
         throughput = samples:throughput(),
-        memory_per_op = memory_per_op,
+        memstat = samples:memstat(),
         ci_lower = ci.lower,
         ci_upper = ci.upper,
         ci_width = ci.upper - ci.lower,
