@@ -21,6 +21,11 @@
 --
 -- report.lua: Benchmark result reporting module
 -- Provides high-quality output formatting similar to Criterion.rs and BenchmarkDotNet
+local select = select
+local tostring = tostring
+local type = type
+local print = print
+local find = string.find
 local format = string.format
 local concat = table.concat
 local sort = table.sort
@@ -28,16 +33,45 @@ local stats_summary = require('measure.stats.summary')
 local compare_samples = require('measure.compare')
 local table_utils = require('measure.report.table')
 local fmt = require('measure.report.format')
-local print = require('measure.print')
 local report_sysinfo = require('measure.report.sysinfo')
+
+--- Format a string or arguments for printing
+--- @param v any First argument - if string with format specifiers, used as format string
+--- @param ... any Additional arguments for formatting or direct printing
+--- @return string Formatted string if format specifiers used, else nil
+local function vformat(v, ...)
+    if type(v) == 'string' and select('#', ...) > 0 and find(v, '%%') then
+        -- Format string with arguments (only if format specifiers found)
+        return format(v, ...)
+    end
+
+    -- No formatting, convert all args to strings and concatenate with spaces
+    local args = {
+        v,
+        ...,
+    }
+    for i = 1, select('#', v, ...) do
+        args[i] = tostring(args[i])
+    end
+    return concat(args, ' ')
+end
 
 --- @class measure.report
 --- @field protected sysinfo table System information key-value pairs
 --- @field protected samples_list measure.samples[] List of samples to report on
 --- @field protected summaries measure.stat.summary[] List of statistical summaries
 --- @field protected comparisons measure.compare.result Result of sample comparisons
+--- @field protected file? file* Optional file handle for output (defaults to stdout)
+--- @field protected tee boolean If true, also print to stdout when file is given
 local Report = {}
 Report.__index = Report
+
+--- Print to file and/or stdout based on configuration
+--- @param ... any Arguments to print
+function Report:print(...)
+    local s = vformat(...)
+    print(s)
+end
 
 --- Create or get existing statistical summaries
 --- @return measure.stat.summary[] List of statistical summaries
@@ -91,7 +125,8 @@ function Report:sampling_details()
         })
     end
 
-    print(concat(tbl:render(), '\n'))
+    -- Render and print table
+    self:print(concat(tbl:render(), '\n'))
 end
 
 -- Print detailed memory analysis table
@@ -140,7 +175,7 @@ function Report:memory_analysis()
         })
     end
 
-    print(concat(tbl:render(), '\n'))
+    self:print(concat(tbl:render(), '\n'))
 end
 
 -- Print measurement reliability analysis (sorted by reliability/precision)
@@ -175,7 +210,7 @@ function Report:reliability_analysis()
         })
     end
 
-    print(concat(tbl:render(), '\n'))
+    self:print(concat(tbl:render(), '\n'))
 end
 
 --- Calculate relative performance vs baseline
@@ -234,7 +269,7 @@ function Report:performance_analysis()
         })
     end
 
-    print(concat(tbl:render(), '\n'))
+    self:print(concat(tbl:render(), '\n'))
 end
 
 local PRINTABLE_CLUSTER = {
@@ -260,44 +295,46 @@ function Report:cluster_analysis()
 end
 
 -- Print statistical method information and clustering details
-local function print_clustering_details(report)
-    local samples_list = report.samples_list
-    local comparison = report:get_comparisons()
+function Report:clustering_details()
+    local samples_list = self.samples_list
+    local comparison = self:get_comparisons()
 
-    print("## Clustering Analysis Details")
-    print.line()
-    print("- Method: %s", comparison.name)
-    print("- Groups: %d sample groups clustered into %d statistical groups",
-          #samples_list, comparison.groups and #comparison.groups or 0)
-    print("- Interpretation: %s", comparison.description)
-    if comparison.clustering then
-        print("- Clustering: %s", comparison.clustering)
-    end
+    self:print([[
+## Clustering Analysis Details
 
-    print.line()
+- Method: %s
+- Groups: %d sample groups clustered into %d statistical groups
+- Interpretation: %s
+- Clustering: %s]], comparison.name, #samples_list,
+               comparison.groups and #comparison.groups or 0,
+               comparison.description, comparison.clustering)
+
+    self:print('')
     local alg = comparison.algorithm
     if alg == "scott-knott-esd" then
-        print("Cluster Legend:")
-        print(
-            "  C1, C2, ... = Statistical cluster ID (preserves original clustering result)")
-        print(
-            "  (n) = Number of statistically equivalent sample groups in cluster")
-        print("  unique = Significantly different from all other sample groups")
-        print("  name +n = Statistically equivalent to 'name' and n others")
+        self:print([[
+Cluster Legend:
+  C1, C2, ... = Statistical cluster ID (preserves original clustering result).
+          (n) = Number of statistically equivalent sample groups in cluster.
+       unique = Significantly different from all other sample groups.
+      name +n = Statistically equivalent to 'name' and n others.
+]])
+    elseif alg == "welch-t-test-holm-correction" then
+        self:print([[
+Statistical Comparison Legend:
+    vs Baseline = Statistical significance compared to fastest sample group.
+      vs Others = Number of significant pairwise comparisons (x/y sig).
+         Effect = Practical significance (small/medium/large difference).
+  [x] (p<0.xxx) = Statistically significant with Holm-corrected p-value.
+]])
     elseif alg == "single-sample" then
-        print("Statistical Comparison Legend:")
-        print("  Only one sample provided; no pairwise comparisons available.")
-        print("  Rankings are based solely on measured mean execution time.")
+        self:print([[
+Statistical Comparison Legend:
+  Only one sample provided; no pairwise comparisons available.
+  Rankings are based solely on measured mean execution time.
+]])
     else
-        print("Statistical Comparison Legend:")
-        print(
-            "  vs Baseline = Statistical significance compared to fastest sample group")
-        print(
-            "  vs Others = Number of significant pairwise comparisons (x/y sig)")
-        print(
-            "  Effect = Practical significance (small/medium/large difference)")
-        print(
-            "  [x] (p<0.xxx) = Statistically significant with Holm-corrected p-value")
+        self:print("Unknown clustering algorithm: %s", alg)
     end
 end
 
@@ -309,7 +346,7 @@ function Report:cluster_analysis_skesd()
         return
     end
 
-    print_clustering_details(self)
+    self:clustering_details()
 
     local summaries = self:get_summaries()
     -- Sort by mean time (lower is better)
@@ -376,8 +413,7 @@ function Report:cluster_analysis_skesd()
         })
     end
 
-    print(concat(tbl:render(), '\n'))
-    print.line()
+    self:print(concat(tbl:render(), '\n'))
 end
 
 -- Print pairwise statistical comparison table with Welch's t-test
@@ -387,6 +423,9 @@ function Report:cluster_analysis_welcht()
         -- No clustering occurred; fallback to Welch's t-test report
         return
     end
+
+    self:clustering_details()
+
     local summaries = self:get_summaries()
     -- Sort by mean time (lower is better)
     sort(summaries, function(a, b)
@@ -444,8 +483,7 @@ function Report:cluster_analysis_welcht()
         })
     end
 
-    print(concat(tbl:render(), '\n'))
-    print.line()
+    self:print(concat(tbl:render(), '\n'))
 end
 
 --- Create a new Report instance
