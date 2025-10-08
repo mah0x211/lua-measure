@@ -17,6 +17,7 @@ modules = {
     ["measure.realpath"] = "lib/realpath.lua",
     ["measure.registry"] = "lib/registry.lua",
     ["measure.report.format"] = "lib/report/format.lua",
+    ["measure.report.sysinfo"] = "lib/report/sysinfo.lua",
     ["measure.report.table"] = "lib/report/table.lua",
     ["measure.spec"] = "lib/spec.lua",
     ["measure.stats"] = "lib/stats.lua",

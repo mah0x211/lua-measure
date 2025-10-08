@@ -17,8 +17,7 @@ function testcase.sysinfo_structure()
     assert.is_table(info.memory)
     assert.is_table(info.lua)
     assert.is_string(info.timestamp)
-    assert.re_match(info.timestamp,
-                    '^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$')
+    assert.re_match(info.timestamp, '^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}')
 
     -- Test OS fields are strings
     assert.is_string(info.os.name)
