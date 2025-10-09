@@ -21,23 +21,58 @@
 --
 -- report.lua: Benchmark result reporting module
 -- Provides high-quality output formatting similar to Criterion.rs and BenchmarkDotNet
+local select = select
+local tostring = tostring
+local type = type
+local print = print
+local find = string.find
 local format = string.format
 local concat = table.concat
 local sort = table.sort
 local stats_summary = require('measure.stats.summary')
 local compare_samples = require('measure.compare')
-local table_utils = require('measure.report.table')
+local new_table = require('measure.report.table')
 local fmt = require('measure.report.format')
-local print = require('measure.print')
 local report_sysinfo = require('measure.report.sysinfo')
+
+--- Format a string or arguments for printing
+--- @param v any First argument - if string with format specifiers, used as format string
+--- @param ... any Additional arguments for formatting or direct printing
+--- @return string Formatted string if format specifiers used, else nil
+local function vformat(v, ...)
+    if type(v) == 'string' and select('#', ...) > 0 and find(v, '%%') then
+        -- Format string with arguments (only if format specifiers found)
+        return format(v, ...)
+    end
+
+    -- No formatting, convert all args to strings and concatenate with spaces
+    local args = {
+        v,
+        ...,
+    }
+    for i = 1, select('#', v, ...) do
+        args[i] = tostring(args[i])
+    end
+    return concat(args, ' ')
+end
 
 --- @class measure.report
 --- @field protected sysinfo table System information key-value pairs
 --- @field protected samples_list measure.samples[] List of samples to report on
+--- @field protected baseline_summary measure.stat.summary Optional baseline summary
 --- @field protected summaries measure.stat.summary[] List of statistical summaries
 --- @field protected comparisons measure.compare.result Result of sample comparisons
+--- @field protected file? file* Optional file handle for output (defaults to stdout)
+--- @field protected tee boolean If true, also print to stdout when file is given
 local Report = {}
 Report.__index = Report
+
+--- Print to file and/or stdout based on configuration
+--- @param ... any Arguments to print
+function Report:print(...)
+    local s = vformat(...)
+    print(s)
+end
 
 --- Create or get existing statistical summaries
 --- @return measure.stat.summary[] List of statistical summaries
@@ -49,6 +84,8 @@ function Report:get_summaries()
             summaries[#summaries + 1] = stats_summary(samples)
         end
         self.summaries = summaries
+        -- First summary is the baseline for relative values
+        self.baseline_summary = summaries[1]
     end
     return summaries
 end
@@ -66,10 +103,7 @@ end
 
 -- Print sampling details (without ranking, focused on technical details)
 function Report:sampling_details()
-    -- Create table directly with new interface
-    local tbl = table_utils.new_table("Sampling Details", nil)
-
-    -- Add columns
+    local tbl = new_table()
     tbl:add_column("Name") -- Text column
     tbl:add_column("Samples", true) -- Numeric column
     tbl:add_column("Outliers") -- Text column (contains parentheses)
@@ -83,7 +117,7 @@ function Report:sampling_details()
         tbl:add_rows({
             summary.name,
             tostring(summary.sample_count),
-            format("%d (%.1f%%)", summary.outliers.total,
+            format("%d (%.1f%%)", summary.outliers.count,
                    summary.outliers.percentage),
             format("%.1f%%", summary.cl),
             format("%.1f%%", summary.target_rciw),
@@ -91,21 +125,47 @@ function Report:sampling_details()
         })
     end
 
-    print(concat(tbl:render(), '\n'))
+    -- Render and print table
+    self:print([[
+### Sampling Details
+]])
+    self:print(concat(tbl:render(), '\n'))
+end
+
+--- Calculate relative value vs baseline
+--- @param baseline number Baseline value
+--- @param target? number Target values (optional)
+--- @param modifier? table Optional modifier for relative value (e.g. "faster", "slower")
+--- @return string relative string (e.g. "1.23x faster" or "baseline")
+local function calc_relative_value(baseline, target, modifier)
+    assert(type(baseline) == "number", "Error: baseline must be a number")
+    assert(type(target) == "number", "Error: target must be a number")
+    assert(type(modifier) == "table", "Error: modifier must be a table")
+
+    -- Validate modifier keys and ensure they are strings
+    assert(type(modifier.greater) == "string",
+           "Error: modifier.greater must be a string")
+    assert(type(modifier.less) == "string",
+           "Error: modifier.less must be a string")
+    assert(type(modifier.equal) == "string",
+           "Error: modifier.equal must be a string")
+
+    if target == baseline then
+        return modifier.equal
+    elseif target > baseline then
+        return format("%.3fx %s", target / baseline, modifier.greater)
+    end
+    return format("%.3fx %s", 1 / (target / baseline), modifier.less)
 end
 
 -- Print detailed memory analysis table
 function Report:memory_analysis()
-    -- Create table directly with new interface
-    local tbl = table_utils.new_table("Memory Analysis",
-                                      "Note: Sorted by Alloc/Op (lower is better).")
-
-    -- Add columns
+    local tbl = new_table()
     tbl:add_column("Name")
     tbl:add_column("Samples", true)
     tbl:add_column("Max Alloc/Op", true)
     tbl:add_column("Alloc/Op", true)
-    tbl:add_column("Rel.")
+    tbl:add_column("Relative")
     tbl:add_column("Peak Memory", true)
     tbl:add_column("Uncollected", true)
     tbl:add_column("Avg Incr.", true)
@@ -117,17 +177,19 @@ function Report:memory_analysis()
     end)
 
     -- Add data rows directly using sorted samples
-    local baseline_alloc_op = summaries[1].memstat.alloc_op
-    for rank, summary in ipairs(summaries) do
+    local baseline = self.baseline_summary
+    local baseline_alloc_op = baseline.memstat.alloc_op
+    for _, summary in ipairs(summaries) do
         local memstat = summary.memstat
 
         -- Calculate relative memory usage
-        local relative = "1.0x"
-        if rank > 1 and baseline_alloc_op > 0 then
-            local ratio = memstat.alloc_op / baseline_alloc_op
-            relative = format("%.1fx", ratio)
-        end
-
+        local relative = summary == baseline and 'baseline' or
+                             calc_relative_value(baseline_alloc_op,
+                                                 memstat.alloc_op, {
+                greater = "more",
+                less = "less",
+                equal = "-",
+            })
         tbl:add_rows({
             summary.name,
             tostring(summary.sample_count),
@@ -140,16 +202,17 @@ function Report:memory_analysis()
         })
     end
 
-    print(concat(tbl:render(), '\n'))
+    self:print([[
+### Memory Analysis
+
+*Sorted by Alloc/Op (lower is better).*
+]])
+    self:print(concat(tbl:render(), '\n'))
 end
 
 -- Print measurement reliability analysis (sorted by reliability/precision)
 function Report:reliability_analysis()
-    -- Create table directly with new interface
-    local tbl = table_utils.new_table("Measurement Reliability Analysis",
-                                      "Note: Sorted by measurement precision (lower RCIW = more reliable)")
-
-    -- Add columns
+    local tbl = new_table()
     tbl:add_column("Name") -- Text column
     tbl:add_column("CI Level") -- Text column (contains formatting)
     tbl:add_column("CI Width", true) -- Numeric column (time values)
@@ -175,35 +238,17 @@ function Report:reliability_analysis()
         })
     end
 
-    print(concat(tbl:render(), '\n'))
-end
+    self:print([[
+### Measurement Reliability Analysis
 
---- Calculate relative performance vs baseline
---- @param baseline number Baseline value
---- @param target? number Target values (optional)
-local function calc_relative_performance(baseline, target)
-    assert(type(baseline) == "number", "Error: baseline must be a number")
-    assert(type(target) == "number" or target == nil,
-           "Error: target must be a number or nil")
-
-    if not target then
-        return "baseline"
-    end
-
-    local ratio = target / baseline
-    if ratio > 1 then
-        return format("%.1fx slower (%.1f%%)", ratio, (ratio - 1) * 100)
-    end
-    return format("%.1fx faster (%.1f%%)", 1 / ratio, (1 - ratio) * 100)
+*Sorted by measurement precision (lower RCIW = more reliable)*
+]])
+    self:print(concat(tbl:render(), '\n'))
 end
 
 -- Print performance ranking table (sorted by mean execution time)
 function Report:performance_analysis()
-    -- Create table directly with new interface
-    local tbl = table_utils.new_table("Performance Analysis",
-                                      "Note: Sorted by mean execution time (lower is better).")
-
-    -- Add columns
+    local tbl = new_table()
     tbl:add_column("Name")
     tbl:add_column("Ops/sec", true)
     tbl:add_column("Mean", true)
@@ -220,7 +265,7 @@ function Report:performance_analysis()
     end)
 
     -- Add data rows using simple time-based ranking
-    local baseline = summaries[1]
+    local baseline = self.baseline_summary
     for _, summary in ipairs(summaries) do
         tbl:add_rows({
             summary.name,
@@ -230,11 +275,21 @@ function Report:performance_analysis()
             fmt.time(summary.p95),
             fmt.time(summary.p99),
             fmt.time(summary.stddev),
-            calc_relative_performance(baseline.mean, summary.mean),
+            summary == baseline and "baseline" or
+                calc_relative_value(baseline.mean, summary.mean, {
+                    greater = "slower",
+                    less = "faster",
+                    equal = "-",
+                }),
         })
     end
 
-    print(concat(tbl:render(), '\n'))
+    self:print([[
+### Performance Analysis
+
+*Sorted by mean execution time (lower is better).*
+]])
+    self:print(concat(tbl:render(), '\n'))
 end
 
 local PRINTABLE_CLUSTER = {
@@ -245,60 +300,33 @@ local PRINTABLE_CLUSTER = {
 -- Print clustering analysis and performance ranking
 function Report:cluster_analysis()
     local comparison = self:get_comparisons()
-    if #comparison.groups < 2 then
-        return
-    end
-
-    local alg = comparison.algorithm
-    if PRINTABLE_CLUSTER[alg] then
-        if alg == "scott-knott-esd" then
-            self:cluster_analysis_skesd()
-        else
-            self:cluster_analysis_welcht()
+    if #comparison.groups < #self.samples_list then
+        -- Clustering occurred, print detailed analysis
+        local alg = comparison.algorithm
+        if PRINTABLE_CLUSTER[alg] then
+            if alg == "scott-knott-esd" then
+                self:cluster_analysis_skesd()
+            else
+                self:cluster_analysis_welcht()
+            end
         end
     end
 end
 
 -- Print statistical method information and clustering details
-local function print_clustering_details(report)
-    local samples_list = report.samples_list
-    local comparison = report:get_comparisons()
+function Report:clustering_details()
+    local samples_list = self.samples_list
+    local comparison = self:get_comparisons()
 
-    print("## Clustering Analysis Details")
-    print.line()
-    print("- Method: %s", comparison.name)
-    print("- Groups: %d sample groups clustered into %d statistical groups",
-          #samples_list, comparison.groups and #comparison.groups or 0)
-    print("- Interpretation: %s", comparison.description)
-    if comparison.clustering then
-        print("- Clustering: %s", comparison.clustering)
-    end
+    self:print([[
+- Method: %s
+- Groups: %d sample groups clustered into %d statistical groups
+- Interpretation: %s
+- Clustering: %s]], comparison.name, #samples_list,
+               comparison.groups and #comparison.groups or 0,
+               comparison.description, comparison.clustering)
 
-    print.line()
-    local alg = comparison.algorithm
-    if alg == "scott-knott-esd" then
-        print("Cluster Legend:")
-        print(
-            "  C1, C2, ... = Statistical cluster ID (preserves original clustering result)")
-        print(
-            "  (n) = Number of statistically equivalent sample groups in cluster")
-        print("  unique = Significantly different from all other sample groups")
-        print("  name +n = Statistically equivalent to 'name' and n others")
-    elseif alg == "single-sample" then
-        print("Statistical Comparison Legend:")
-        print("  Only one sample provided; no pairwise comparisons available.")
-        print("  Rankings are based solely on measured mean execution time.")
-    else
-        print("Statistical Comparison Legend:")
-        print(
-            "  vs Baseline = Statistical significance compared to fastest sample group")
-        print(
-            "  vs Others = Number of significant pairwise comparisons (x/y sig)")
-        print(
-            "  Effect = Practical significance (small/medium/large difference)")
-        print(
-            "  [x] (p<0.xxx) = Statistically significant with Holm-corrected p-value")
-    end
+    self:print('')
 end
 
 -- Print performance ranking table with Scott-Knott ESD clustering
@@ -309,19 +337,14 @@ function Report:cluster_analysis_skesd()
         return
     end
 
-    print_clustering_details(self)
-
     local summaries = self:get_summaries()
     -- Sort by mean time (lower is better)
     sort(summaries, function(a, b)
         return a.mean < b.mean
     end)
 
-    local baseline = summaries[1]
-    local baseline_group = comparison.groups[baseline.name]
-    local tbl = table_utils.new_table("Statistical Clustering Analysis",
-                                      "Note: Samples in same cluster are statistically equivalent")
-    -- Add columns
+    local baseline_group = comparison.groups[self.baseline_summary.name]
+    local tbl = new_table()
     tbl:add_column("Cluster")
     tbl:add_column("Name")
     tbl:add_column("Mean", true)
@@ -333,19 +356,9 @@ function Report:cluster_analysis_skesd()
     for rank, summary in ipairs(summaries) do
         local name = summary.name
         local sample_group = comparison.groups[name]
-
-        -- Format cluster display
-        local cluster_display = format("C%d",
-                                       sample_group.rank or sample_group.id)
-        if #sample_group.names > 1 then
-            cluster_display = format("C%d (%d)",
-                                     sample_group.rank or sample_group.id,
-                                     #sample_group.names)
-        end
-
-        -- Calculate statistics vs baseline
         local significant = "-"
 
+        -- Calculate statistics vs baseline
         if rank > 1 and baseline_group and sample_group then
             if baseline_group.id == sample_group.id then
                 -- Same cluster, statistically equivalent
@@ -367,7 +380,7 @@ function Report:cluster_analysis_skesd()
         end
 
         tbl:add_rows({
-            cluster_display,
+            format("C%d", sample_group.rank or sample_group.id),
             name,
             fmt.time(summary.mean),
             format("%d", sample_group.count or 0),
@@ -376,8 +389,13 @@ function Report:cluster_analysis_skesd()
         })
     end
 
-    print(concat(tbl:render(), '\n'))
-    print.line()
+    self:print([[
+### Statistical Clustering Analysis
+
+**Note: Samples in same cluster are statistically equivalent.**
+]])
+    self:clustering_details()
+    self:print(concat(tbl:render(), '\n'))
 end
 
 -- Print pairwise statistical comparison table with Welch's t-test
@@ -387,17 +405,15 @@ function Report:cluster_analysis_welcht()
         -- No clustering occurred; fallback to Welch's t-test report
         return
     end
+
     local summaries = self:get_summaries()
     -- Sort by mean time (lower is better)
     sort(summaries, function(a, b)
         return a.mean < b.mean
     end)
-    local baseline = summaries[1]
+    local baseline = self.baseline_summary
 
-    local tbl = table_utils.new_table(
-                    "Pairwise Statistical Comparisons (Welch's t-test)",
-                    "Note: Each sample compared against every other sample with Holm multiple testing correction")
-    -- Add columns (matching skesd structure, with welcht-specific column)
+    local tbl = new_table()
     tbl:add_column("Cluster")
     tbl:add_column("Name")
     tbl:add_column("Mean", true)
@@ -409,16 +425,9 @@ function Report:cluster_analysis_welcht()
     for rank, summary in ipairs(summaries) do
         local name = summary.name
         local sample_group = comparison.groups[name]
-
-        -- Format cluster display (for Welch's t-test, this shows statistical equivalence groups)
-        local cluster_display = format("G%d", sample_group.rank)
-        if #sample_group.names > 1 then
-            cluster_display = format("G%d (%d)", sample_group.rank,
-                                     #sample_group.names)
-        end
-
         local p_adjusted_display = "-"
         local significant = "-"
+
         if rank > 1 then
             -- Get pairwise comparison using O(1) access
             local comp = comparison.pairs[baseline.name][name]
@@ -435,7 +444,7 @@ function Report:cluster_analysis_welcht()
         -- Get sample size
         local sample_size = format("%d", summary.sample_count or 0)
         tbl:add_rows({
-            cluster_display,
+            format("C%d", sample_group.rank),
             name,
             fmt.time(summary.mean),
             sample_size,
@@ -444,8 +453,35 @@ function Report:cluster_analysis_welcht()
         })
     end
 
-    print(concat(tbl:render(), '\n'))
-    print.line()
+    self:print([[
+### Pairwise Statistical Comparisons (Welch's t-test)
+
+**Note: Each sample compared against every other sample with Holm multiple testing correction**
+]])
+    self:clustering_details()
+    self:print(concat(tbl:render(), '\n'))
+end
+
+--- Render the full report
+function Report:render()
+    -- Sampling details
+    self:sampling_details()
+    self:print('')
+
+    -- Memory analysis
+    self:memory_analysis()
+    self:print('')
+
+    -- Measurement reliability analysis
+    self:reliability_analysis()
+    self:print('')
+
+    -- Performance analysis
+    self:performance_analysis()
+    self:print('')
+
+    -- Clustering analysis (if applicable)
+    self:cluster_analysis()
 end
 
 --- Create a new Report instance
@@ -456,11 +492,10 @@ local function new(samples_list)
         error("Error: At least one sample required for comparison", 2)
     end
 
-    local self = setmetatable({
+    return setmetatable({
         samples_list = samples_list,
         sysinfo = report_sysinfo(),
     }, Report)
-    return self
 end
 
 return new

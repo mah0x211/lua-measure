@@ -5,31 +5,14 @@ local table_utils = require('measure.report.table')
 
 function testcase.new_table()
     -- Valid creation
-    local tbl = table_utils.new_table("Test Title")
+    local tbl = table_utils()
     assert.is_table(tbl)
-
-    local tbl_with_note = table_utils.new_table("Test Title", "Test Note")
-    assert.is_table(tbl_with_note)
-
-    -- Invalid arguments
-    local err = assert.throws(function()
-        table_utils.new_table()
-    end)
-    assert.match(err, "Table title must be a non-empty string")
-
-    err = assert.throws(function()
-        table_utils.new_table("")
-    end)
-    assert.match(err, "Table title must be a non-empty string")
-
-    err = assert.throws(function()
-        table_utils.new_table("Title", 123)
-    end)
-    assert.match(err, "Table note must be a string or nil")
+    assert.is_table(tbl.columns)
+    assert.equal(#tbl.columns, 0)
 end
 
 function testcase.add_column()
-    local tbl = table_utils.new_table("Test")
+    local tbl = table_utils()
 
     -- Non-numeric column
     tbl:add_column("Name")
@@ -61,7 +44,7 @@ function testcase.add_column()
 end
 
 function testcase.add_row()
-    local tbl = table_utils.new_table("Test")
+    local tbl = table_utils()
     tbl:add_column("Name")
     local column = tbl.columns[1]
 
@@ -80,7 +63,7 @@ function testcase.add_row()
 end
 
 function testcase.add_rows()
-    local tbl = table_utils.new_table("Test")
+    local tbl = table_utils()
     tbl:add_column("Name")
     tbl:add_column("Value", true)
 
@@ -124,7 +107,7 @@ function testcase.add_rows()
 end
 
 function testcase.render_basic()
-    local tbl = table_utils.new_table("Test Results")
+    local tbl = table_utils()
     tbl:add_column("Name")
     tbl:add_column("Value", true)
     tbl:add_rows({
@@ -139,48 +122,54 @@ function testcase.render_basic()
     local lines = tbl:render()
     assert.is_table(lines)
     assert.greater(#lines, 0)
-    assert.equal(lines[1], "### Test Results")
 
     -- Verify table structure contains expected elements
     local has_header = false
+    local has_separator = false
     local data_count = 0
 
     for _, line in ipairs(lines) do
         if line:match("Name.*Value") then
             has_header = true
+        elseif line:match("|%-+:?|") then
+            has_separator = true
         elseif line:match("Alice") or line:match("Bob") then
             data_count = data_count + 1
         end
     end
 
     assert.is_true(has_header)
+    assert.is_true(has_separator)
     assert.equal(data_count, 2)
 end
 
 function testcase.render_with_note()
-    local tbl = table_utils.new_table("Test Results", "All values in seconds")
+    -- Note: render_with_note test removed as title/note functionality was removed
+    -- This test is kept as a placeholder for potential future note functionality
+    local tbl = table_utils()
     tbl:add_column("Test")
     tbl:add_rows({
         "Sample",
     })
 
     local lines = tbl:render()
-    assert.equal(lines[1], "### Test Results")
-    assert.equal(lines[2], "")
-    assert.equal(lines[3], "*All values in seconds*")
+    assert.is_table(lines)
+    assert.greater(#lines, 0)
 end
 
 function testcase.render_empty_table()
-    local tbl = table_utils.new_table("Empty Table")
+    local tbl = table_utils()
 
     local lines = tbl:render()
     assert.is_table(lines)
-    assert.greater(#lines, 0)
-    assert.equal(lines[1], "### Empty Table")
+    -- Empty table should still render something
+    assert.greater_or_equal(#lines, 1)
+    -- Last line should be empty
+    assert.equal(lines[#lines], "")
 end
 
 function testcase.render_numeric_alignment()
-    local tbl = table_utils.new_table("Numeric Test")
+    local tbl = table_utils()
     tbl:add_column("Name")
     tbl:add_column("Value", true)
     tbl:add_rows({
@@ -206,7 +195,7 @@ function testcase.render_numeric_alignment()
 end
 
 function testcase.render_non_numeric_alignment()
-    local tbl = table_utils.new_table("Non-Numeric Test")
+    local tbl = table_utils()
     tbl:add_column("Name")
     tbl:add_column("Description", false)
     tbl:add_rows({
@@ -224,7 +213,7 @@ function testcase.render_non_numeric_alignment()
 end
 
 function testcase.validation_errors()
-    local tbl = table_utils.new_table("Test")
+    local tbl = table_utils()
     tbl:add_column("Name")
     tbl:add_rows({
         "Test",
@@ -247,8 +236,7 @@ function testcase.validation_errors()
 end
 
 function testcase.render_markdown_format()
-    local tbl = table_utils.new_table("Benchmark Results",
-                                      "All times in milliseconds")
+    local tbl = table_utils()
     tbl:add_column("Rank", true)
     tbl:add_column("Name")
     tbl:add_column("95% CI")
@@ -273,15 +261,10 @@ function testcase.render_markdown_format()
         "excellent",
     })
 
-    -- Test default markdown format
+    -- Test markdown format
     local lines = tbl:render()
     assert.is_table(lines)
     assert.greater(#lines, 0)
-
-    -- Check title in markdown format
-    assert.equal(lines[1], "### Benchmark Results")
-    assert.equal(lines[2], "")
-    assert.equal(lines[3], "*All times in milliseconds*")
 
     -- Check for markdown separator line with alignment indicators
     local has_separator = false
@@ -305,7 +288,7 @@ function testcase.render_markdown_format()
 end
 
 function testcase.render_default_format()
-    local tbl = table_utils.new_table("Test")
+    local tbl = table_utils()
     tbl:add_column("Name")
     tbl:add_rows({
         "Test",
@@ -314,9 +297,6 @@ function testcase.render_default_format()
     -- Default should be markdown
     local lines = tbl:render()
     assert.is_table(lines)
-
-    -- Check for markdown-style title
-    assert.equal(lines[1], "### Test")
 
     -- Check for markdown separator line
     local has_separator = false
@@ -330,7 +310,7 @@ function testcase.render_default_format()
 end
 
 function testcase.numeric_alignment()
-    local tbl = table_utils.new_table("Numeric Alignment Test")
+    local tbl = table_utils()
     tbl:add_column("Index", true)
     tbl:add_column("Name")
     tbl:add_column("Score", true)
@@ -378,7 +358,7 @@ function testcase.numeric_alignment()
 end
 
 function testcase.column_width_calculation()
-    local tbl = table_utils.new_table("Width Test")
+    local tbl = table_utils()
     tbl:add_column("A")
 
     -- Row longer than header

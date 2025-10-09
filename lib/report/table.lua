@@ -126,8 +126,6 @@ function Column:add_row(value)
 end
 
 --- @class measure.report.table
---- @field title string
---- @field note string?
 --- @field columns measure.report.table.column[] Array of column definitions
 local Table = require('measure.metatable')('measure.report.table')
 
@@ -179,16 +177,6 @@ function Table:render()
 
     -- Validate columns before rendering
     validate_columns(columns)
-
-    -- Add title and note in Markdown format
-    if self.title then
-        lines[#lines + 1] = "### " .. self.title
-        if self.note then
-            lines[#lines + 1] = ""
-            lines[#lines + 1] = "*" .. self.note .. "*"
-        end
-        lines[#lines + 1] = ""
-    end
 
     -- Build header row
     local header_parts = {}
@@ -244,24 +232,13 @@ function Table:render()
 end
 
 --- Creates a new Table instance
---- @param title string Title of the table
---- @param note string? Optional note for the table
 --- @return measure.report.table
-local function new_table(title, note)
-    assert(type(title) == 'string' and #title > 0,
-           "Table title must be a non-empty string")
-    assert(note == nil or type(note) == 'string',
-           "Table note must be a string or nil")
-
+local function new_table()
     -- Create a new Table instance with the provided title and note
     return setmetatable({
-        title = title,
-        note = note,
         columns = {}, -- Initialize empty columns array
     }, Table)
 end
 
 -- Export the module
-return {
-    new_table = new_table,
-}
+return new_table
