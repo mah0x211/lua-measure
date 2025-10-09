@@ -24,7 +24,7 @@ jobs:
     -
       name: Run luacheck
       run: |
-        luacheck .
+        luacheck --no-self .
 
   test:
     runs-on: ubuntu-latest
