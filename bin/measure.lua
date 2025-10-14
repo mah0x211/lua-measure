@@ -176,8 +176,7 @@ end
 local function run_describes(spec)
     local results = {}
     for _, desc in ipairs(spec.describes) do
-        local name = tostring(desc)
-        printf('- %s', name)
+        printf('- %s', desc.spec.name)
 
         -- execute setup() function if defined
         local opts = desc.spec.options or {}

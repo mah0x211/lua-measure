@@ -130,21 +130,6 @@ function testcase.new_describe_valid()
     assert.equal(#spec.describes, 1)
 end
 
-function testcase.new_describe_with_namefn()
-    local spec = new_spec()
-
-    -- Test creating a describe with name function
-    local namefn = function(i)
-        return 'Dynamic Test ' .. i
-    end
-    local desc, err = spec:new_describe('Base Name', namefn)
-    assert.is_table(desc)
-    assert.is_nil(err)
-
-    -- Check that namefn is stored
-    assert.equal(desc.spec.namefn, namefn)
-end
-
 function testcase.new_describe_invalid_name()
     local spec = new_spec()
 
@@ -160,19 +145,6 @@ function testcase.new_describe_invalid_name()
     desc, err = spec:new_describe({})
     assert.is_nil(desc)
     assert.match(err, 'name must be a string', false)
-end
-
-function testcase.new_describe_invalid_namefn()
-    local spec = new_spec()
-
-    -- Test with invalid namefn type
-    local desc, err = spec:new_describe('Test', 'not a function')
-    assert.is_nil(desc)
-    assert.match(err, 'namefn must be a function or nil', false)
-
-    desc, err = spec:new_describe('Test', 123)
-    assert.is_nil(desc)
-    assert.match(err, 'namefn must be a function or nil', false)
 end
 
 function testcase.new_describe_duplicate_name()

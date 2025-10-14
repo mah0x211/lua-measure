@@ -32,7 +32,7 @@ local registry_get = require('measure.registry').get
 local registry_add = require('measure.registry').add
 local new_options = require('measure.options')
 
---- @alias add_describe_fn fun(name: string, namefn: function?): measure.describe
+--- @alias add_describe_fn fun(name: string): measure.describe
 
 --- @type fun(source: string, options: measure.options?):add_describe_fn
 local new_describe
@@ -120,11 +120,11 @@ end
 --- @param options measure.options? Optional options for the describe
 --- @return add_describe_fn
 function new_describe(source, options)
-    --- @type fun(name: string, namefn: function?): measure.describe
-    return function(name, namefn)
+    --- @type fun(name: string): measure.describe
+    return function(name)
         -- Create new benchmark description
         local spec = get_spec(source)
-        local desc, err = spec:new_describe(name, namefn, options)
+        local desc, err = spec:new_describe(name, options)
         if not desc then
             error(err, 2)
         end
