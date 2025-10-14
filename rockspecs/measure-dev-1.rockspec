@@ -11,6 +11,7 @@ description = {
 }
 dependencies = {
     "lua >= 5.1",
+    "chdir >= 0.2.0",
 }
 build = {
     type = 'make',
