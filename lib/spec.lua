@@ -95,13 +95,12 @@ end
 
 --- Create a new describe object
 --- @param name string The benchmark name
---- @param namefn function|nil Optional name generator function
 --- @param opts measure.options? Optional options for the describe
 --- @return measure.describe|nil desc The new describe object
 --- @return string|nil err Error message if failed
-function Spec:new_describe(name, namefn, opts)
+function Spec:new_describe(name, opts)
     -- Create new describe object
-    local desc, err = new_describe(name, namefn, opts)
+    local desc, err = new_describe(name, opts)
     if not desc then
         return nil, err
     end

@@ -87,30 +87,11 @@ function testcase.describe_basic()
     assert.equal(tostring(desc), 'measure.describe "Test Benchmark"')
 end
 
-function testcase.describe_with_namefn()
-    -- Test describe with name function
-    local namefn = function(i)
-        return 'Test ' .. i
-    end
-    local desc = measure.describe('Base Name', namefn)
-    assert.is_table(desc)
-
-    -- Check tostring format to verify it's a proxy object
-    assert.equal(tostring(desc), 'measure.describe "Base Name"')
-end
-
 function testcase.describe_invalid_name()
     -- Test describe with invalid name
     assert.throws(function()
         measure.describe(123)
     end, 'name must be a string')
-end
-
-function testcase.describe_invalid_namefn()
-    -- Test describe with invalid namefn
-    assert.throws(function()
-        measure.describe('Test', "not a function")
-    end, 'namefn must be a function or nil')
 end
 
 function testcase.describe_duplicate_name()
@@ -391,12 +372,6 @@ function testcase.actual_measure_error_handling()
                 actual_measure.describe(123)
             end,
             'name must be a string',
-        },
-        {
-            function()
-                actual_measure.describe("test", "not a function")
-            end,
-            'namefn must be a function or nil',
         },
     }
 

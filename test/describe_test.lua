@@ -15,36 +15,13 @@ function testcase.constructor()
     local desc = assert(new_describe('test benchmark'))
     assert.equal(tostring(desc), 'measure.describe "test benchmark"')
     assert.equal(desc.spec.name, 'test benchmark')
-    assert.is_nil(desc.spec.namefn)
-
-    -- Test with namefn
-    local namefn = function(i)
-        return 'test ' .. i
-    end
-    desc = assert(new_describe('test benchmark', namefn))
-    assert.equal(desc.spec.name, 'test benchmark')
-    assert.equal(desc.spec.namefn, namefn)
 end
 
 function testcase.constructor_invalid()
     -- Test invalid arguments
-    local invalid_cases = {
-        {
-            123,
-            'name must be a string, got "number"',
-        },
-        {
-            'test',
-            'not a function',
-            'namefn must be a function or nil, got "string"',
-        },
-    }
-
-    for _, case in ipairs(invalid_cases) do
-        local desc, err = new_describe(case[1], case[2])
-        assert.is_nil(desc)
-        assert.equal(err, case[#case])
-    end
+    local desc, err = new_describe(123)
+    assert.is_nil(desc)
+    assert.equal(err, 'name must be a string, got "number"')
 end
 
 -- Helper function for method testing
@@ -192,17 +169,14 @@ function testcase.workflow()
         assert.is_nil(desc.spec[field])
     end
 
-    -- Test setup_once → run_with_timer workflow with namefn
-    desc = assert(new_describe('test with namefn', function(i)
-        return 'iteration ' .. i
-    end))
+    -- Test setup_once → run_with_timer workflow
+    desc = assert(new_describe('test with setup_once'))
     assert(desc:setup_once(create_dummy_fn()))
     assert(desc:run_with_timer(create_dummy_fn()))
 
     expected_fields = {
         'setup_once',
         'run_with_timer',
-        'namefn',
     }
     nil_fields = {
         'setup',

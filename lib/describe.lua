@@ -31,7 +31,6 @@ local getinfo = require('measure.getinfo')
 
 --- @class measure.describe.spec
 --- @field name string The name of the benchmark
---- @field namefn function|nil Optional function to generate dynamic names
 --- @field options measure.options|nil Options for the benchmark
 --- @field setup function|nil Setup function for each iteration
 --- @field setup_once function|nil Setup function that runs once before all iterations
@@ -147,16 +146,12 @@ end
 
 --- Create a new benchmark describe instance
 --- @param name string The name of the benchmark
---- @param namefn function? Optional function to generate dynamic names
 --- @param opts measure.options? Optional options for the describe
 --- @return measure.describe? desc The new describe instance
 --- @return string? err Error message if failed
-local function new_describe(name, namefn, opts)
+local function new_describe(name, opts)
     if type(name) ~= 'string' then
         return nil, format('name must be a string, got %q', type(name))
-    elseif namefn ~= nil and type(namefn) ~= 'function' then
-        return nil,
-               format('namefn must be a function or nil, got %q', type(namefn))
     end
 
     --- Get the current working directory
@@ -183,7 +178,6 @@ local function new_describe(name, namefn, opts)
     local desc = setmetatable({
         spec = {
             name = name,
-            namefn = namefn,
             options = opts,
         },
         fileinfo = fileinfo,
