@@ -422,13 +422,13 @@ function Report:cluster_analysis_welcht()
     tbl:add_column("p-adj (Holm)") -- Welch's t-test specific: Holm-corrected p-value
 
     -- Add data rows
-    for rank, summary in ipairs(summaries) do
+    for _, summary in ipairs(summaries) do
         local name = summary.name
         local sample_group = comparison.groups[name]
         local p_adjusted_display = "-"
         local significant = "-"
 
-        if rank > 1 then
+        if summary ~= baseline then
             -- Get pairwise comparison using O(1) access
             local comp = comparison.pairs[baseline.name][name]
 
