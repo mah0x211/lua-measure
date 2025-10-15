@@ -178,8 +178,18 @@ local function run_describes(spec)
     for _, desc in ipairs(spec.describes) do
         printf('- %s', desc.spec.name)
 
+        -- get options with defaults
+        local options = desc.spec.options or {}
+        local opts = {
+            -- set default options
+            context = options.context or {},
+            warmup = options.warmup or 1, -- warmup time (seconds)
+            gc_step = options.gc_step or 0, -- gc step size (KB)
+            confidence_level = options.confidence_level or 95, -- confidence level (%)
+            rciw = options.rciw or 5, -- target relative confidence interval width (%)
+        }
+
         -- execute setup() function if defined
-        local opts = desc.spec.options or {}
         local ok, res = safecall('setup()', desc.spec.setup or NOOP,
                                  opts.context)
         if not ok then
@@ -187,22 +197,16 @@ local function run_describes(spec)
         end
 
         -- execute run() or run_with_timer() function
-        local sampling_ctx = {
-            warmup = opts.warmup,
-            gc_step = opts.gc_step,
-            confidence_level = opts.confidence_level,
-            rciw = opts.rciw,
-        }
         local bench_ok, bench_res
         if desc.spec.run then
             bench_ok, bench_res = safecall('run()', function()
-                return do_sampling(desc.spec.name, desc.spec.run, sampling_ctx)
+                return do_sampling(desc.spec.name, desc.spec.run, opts)
             end)
         else
             bench_ok, bench_res = safecall('run_with_timer()',
                                            desc.spec.run_with_timer,
                                            function(fn)
-                return do_sampling(desc.spec.name, fn, sampling_ctx)
+                return do_sampling(desc.spec.name, fn, opts)
             end)
         end
 
