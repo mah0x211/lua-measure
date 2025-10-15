@@ -147,15 +147,16 @@ end
 --- @return measure.samples? samples The samples object with collected data
 --- @return any err Error message if failed
 local function do_sampling(name, fn, ctx)
-    local iteration = 0
+    local iteration = 1
     local sample_size = 30
+    local warmup = ctx.warmup
     local samples = new_samples(name, sample_size, ctx.gc_step,
                                 ctx.confidence_level, ctx.rciw)
+
+    printf('    - Sampling %d samples (iteration %d, warmup %d sec)',
+           sample_size, iteration, warmup)
     while sample_size do
-        iteration = iteration + 1
-        printf('    - Sampling %d samples (iteration %d)', sample_size,
-               iteration)
-        local ok, err = sampler(fn, samples, ctx.warmup)
+        local ok, err = sampler(fn, samples, warmup)
         if not ok then
             error(err, 2)
         end
@@ -163,7 +164,11 @@ local function do_sampling(name, fn, ctx)
         local ci = stats_ci(samples)
         sample_size = ci.resample_size
         if sample_size then
+            iteration = iteration + 1
+            warmup = nil -- no warmup for subsequent iterations
             samples:capacity(sample_size - #samples)
+            printf('    - Sampling %d samples (iteration %d)', sample_size,
+                   iteration)
         end
     end
 
@@ -178,8 +183,18 @@ local function run_describes(spec)
     for _, desc in ipairs(spec.describes) do
         printf('- %s', desc.spec.name)
 
+        -- get options with defaults
+        local options = desc.spec.options or {}
+        local opts = {
+            -- set default options
+            context = options.context or {},
+            warmup = options.warmup or 1, -- warmup time (seconds)
+            gc_step = options.gc_step or 0, -- gc step size (KB)
+            confidence_level = options.confidence_level or 95, -- confidence level (%)
+            rciw = options.rciw or 5, -- target relative confidence interval width (%)
+        }
+
         -- execute setup() function if defined
-        local opts = desc.spec.options or {}
         local ok, res = safecall('setup()', desc.spec.setup or NOOP,
                                  opts.context)
         if not ok then
@@ -187,22 +202,16 @@ local function run_describes(spec)
         end
 
         -- execute run() or run_with_timer() function
-        local sampling_ctx = {
-            warmup = opts.warmup,
-            gc_step = opts.gc_step,
-            confidence_level = opts.confidence_level,
-            rciw = opts.rciw,
-        }
         local bench_ok, bench_res
         if desc.spec.run then
             bench_ok, bench_res = safecall('run()', function()
-                return do_sampling(desc.spec.name, desc.spec.run, sampling_ctx)
+                return do_sampling(desc.spec.name, desc.spec.run, opts)
             end)
         else
             bench_ok, bench_res = safecall('run_with_timer()',
                                            desc.spec.run_with_timer,
                                            function(fn)
-                return do_sampling(desc.spec.name, fn, sampling_ctx)
+                return do_sampling(desc.spec.name, fn, opts)
             end)
         end
 
