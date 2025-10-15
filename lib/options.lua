@@ -32,8 +32,8 @@ local INF_NEG = -INF_POS
 
 --- @class measure.options
 --- @field context table|function|nil Context for the benchmark
---- @field warmup number|nil Warmup iterations before measuring
---- @field gc_step number|nil Garbage collection step size for sampling
+--- @field warmup number|nil Warmup iterations before measuring (default: 1, max: 5)
+--- @field gc_step number|nil Garbage collection step size for sampling (default: 0 = full GC)
 --- @field confidence_level number|nil confidence level in percentage (0-100, default: 95)
 --- @field rciw number|nil relative confidence interval width in percentage (0-100, default: 5)
 
@@ -117,8 +117,8 @@ local function new_options(opts)
     return setmetatable({
         -- Set default values if not provided
         context = opts.context,
-        warmup = opts.warmup,
-        gc_step = opts.gc_step,
+        warmup = opts.warmup or 1,
+        gc_step = opts.gc_step or 0,
         confidence_level = opts.confidence_level or 95,
         rciw = opts.rciw or 5,
     }, Options)

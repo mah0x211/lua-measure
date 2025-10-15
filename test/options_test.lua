@@ -67,8 +67,8 @@ function testcase.valid_options_empty_table()
     local opts = assert_valid_options({})
     -- Check default values
     assert.is_nil(opts.context)
-    assert.is_nil(opts.warmup)
-    assert.is_nil(opts.gc_step)
+    assert.equal(opts.warmup, 1) -- Default value
+    assert.equal(opts.gc_step, 0) -- Default value
     assert.equal(opts.confidence_level, 95) -- Default value
     assert.equal(opts.rciw, 5) -- Default value
 end
@@ -82,7 +82,7 @@ function testcase.valid_options_with_partial_values()
     assert.equal(opts.warmup, 2)
     assert.equal(opts.confidence_level, 99)
     assert.is_nil(opts.context)
-    assert.is_nil(opts.gc_step)
+    assert.equal(opts.gc_step, 0) -- Default value
     assert.equal(opts.rciw, 5) -- Default value
 end
 
@@ -264,7 +264,7 @@ function testcase.unknown_fields_discarded()
     for _ in pairs(opts) do
         field_count = field_count + 1
     end
-    assert.equal(field_count, 3) -- warmup + confidence_level + rciw
+    assert.equal(field_count, 4) -- warmup + gc_step + confidence_level + rciw
 end
 
 function testcase.mixed_valid_and_invalid_options()
@@ -286,7 +286,7 @@ function testcase.all_defined_fields_accessible()
     -- Check all fields are accessible
     assert.equal(opts.warmup, 2)
     assert.is_nil(opts.context) -- Accessible but nil
-    assert.is_nil(opts.gc_step) -- Accessible but nil
+    assert.equal(opts.gc_step, 0) -- Default value
     assert.equal(opts.confidence_level, 99) -- Provided value
     assert.equal(opts.rciw, 5) -- Default value
 
@@ -305,5 +305,5 @@ function testcase.all_defined_fields_accessible()
         assert(expected_fields[k], 'Unexpected field: ' .. k)
     end
 
-    assert.equal(field_count, 3) -- warmup, confidence_level, rciw are non-nil
+    assert.equal(field_count, 4) -- warmup, gc_step, confidence_level, rciw are non-nil
 end
