@@ -104,7 +104,7 @@ local function calculate_resample_size(samples, target_rciw, confidence_level,
     -- Therefore: margin_of_error = RCIW * mean / 200
     local target_margin = target_rciw * abs(current_mean) / 200.0
 
-    -- Get appropriate critical value (t-distribution)
+    -- Get appropriate critical value (currently normal-distribution z value)
     local critical_value = quantile(confidence_level)
 
     -- Calculate current margin of error from actual measurements
@@ -145,7 +145,8 @@ local function calculate_resample_size(samples, target_rciw, confidence_level,
     estimated_n = min(estimated_n, current_n * 20) -- Cap at 20x current size
     estimated_n = min(estimated_n, 5000) -- Absolute cap at 5000 samples
 
-    return estimated_n
+    -- Only recommend if larger than current sample size
+    return estimated_n > current_n and estimated_n or nil
 end
 
 --- Calculate confidence interval for the mean using t-distribution
