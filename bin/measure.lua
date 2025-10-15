@@ -147,15 +147,16 @@ end
 --- @return measure.samples? samples The samples object with collected data
 --- @return any err Error message if failed
 local function do_sampling(name, fn, ctx)
-    local iteration = 0
+    local iteration = 1
     local sample_size = 30
+    local warmup = ctx.warmup
     local samples = new_samples(name, sample_size, ctx.gc_step,
                                 ctx.confidence_level, ctx.rciw)
+
+    printf('    - Sampling %d samples (iteration %d, warmup %d sec)',
+           sample_size, iteration, warmup)
     while sample_size do
-        iteration = iteration + 1
-        printf('    - Sampling %d samples (iteration %d)', sample_size,
-               iteration)
-        local ok, err = sampler(fn, samples, ctx.warmup)
+        local ok, err = sampler(fn, samples, warmup)
         if not ok then
             error(err, 2)
         end
@@ -163,7 +164,11 @@ local function do_sampling(name, fn, ctx)
         local ci = stats_ci(samples)
         sample_size = ci.resample_size
         if sample_size then
+            iteration = iteration + 1
+            warmup = nil -- no warmup for subsequent iterations
             samples:capacity(sample_size - #samples)
+            printf('    - Sampling %d samples (iteration %d)', sample_size,
+                   iteration)
         end
     end
 
