@@ -42,10 +42,8 @@ local function format_time(nanoseconds)
         return format("%0.3f ms", nanoseconds / 1e6)
     elseif nanoseconds >= 1e3 then
         return format("%0.3f us", nanoseconds / 1e3)
-    elseif nanoseconds == 0 or math.abs(nanoseconds) >= 1 then
-        return format("%d ns", nanoseconds)
     end
-    return format("%0.3f ns", nanoseconds)
+    return format("%0.0f ns", nanoseconds)
 end
 
 --- Format throughput in appropriate units

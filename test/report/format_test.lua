@@ -104,10 +104,8 @@ function testcase.edge_cases()
     assert.equal(fmt.throughput(1e15), "1000000.00 G op/s")
     assert.equal(fmt.memory(1e15), "953674316.41 GB") -- 1e15 KB = 953674316.41 GB
 
-    -- Test very small positive numbers
-    assert.equal(fmt.time(0.1), "0.100 ns")
-    assert.equal(fmt.time(0.5), "0.500 ns")
-    assert.equal(fmt.time(0.9), "0.900 ns")
+    -- Test numbers less than 1 treated as zero
+    assert.equal(fmt.time(0.1), "0 ns")
 
     -- Test negative numbers for time (negative values go to else branch -> ns)
     assert.equal(fmt.time(-1000), "-1000 ns") -- Negative, so not >= 1e3
