@@ -41,7 +41,7 @@
 
 static inline void *luaL_testudata(lua_State *L, int i, const char *tname)
 {
-    if (lua_isuserdata(L, i)) {
+    if (!lua_isuserdata(L, i)) {
         return NULL;
     }
     luaL_checkstack(L, 2, "not enough stack slots");
