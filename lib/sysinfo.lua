@@ -28,7 +28,7 @@ local abs = math.abs
 local floor = math.floor
 local open = io.open
 local popen = io.popen
-local format = require('string.format')
+local format = string.format
 
 --- Execute shell command and capture output
 --- @param cmd string shell command to execute
