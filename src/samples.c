@@ -23,6 +23,8 @@
 #include "measure_samples.h"
 #include "stats/common.h"
 
+#define MAX_SAMPLES_CAPACITY (SIZE_MAX / sizeof(measure_samples_data_t))
+
 static int mad_lua(lua_State *L)
 {
     measure_samples_t *samples = luaL_checkudata(L, 1, MEASURE_SAMPLES_MT);
@@ -191,6 +193,9 @@ static int capacity_lua(lua_State *L)
         measure_samples_data_t *new_data = NULL;
 
         luaL_argcheck(L, increase > 0, 2, "positive integer expected");
+        luaL_argcheck(L,
+                      (uintmax_t)increase <= MAX_SAMPLES_CAPACITY - s->capacity,
+                      2, "capacity is too large");
 
         // Calculate new capacity
         new_capacity = s->capacity + (size_t)increase;
@@ -517,6 +522,11 @@ static int restore_lua(lua_State *L)
 
     // validate capacity field
     GET_IVALUE_FIELD("capacity", iv <= 0, "must be > 0");
+    if ((uintmax_t)iv > MAX_SAMPLES_CAPACITY) {
+        lua_pushnil(L);
+        lua_pushliteral(L, "invalid field 'capacity': is too large");
+        return 2;
+    }
     capacity = (size_t)iv;
 
     // validate count field
@@ -683,6 +693,9 @@ static int merge_lua(lua_State *L)
         measure_samples_t *item = luaL_testudata(L, -1, MEASURE_SAMPLES_MT);
         luaL_argcheck(L, item != NULL, 2,
                       "all elements must be measure.samples objects");
+        luaL_argcheck(L,
+                      item->capacity <= MAX_SAMPLES_CAPACITY - total_capacity,
+                      2, "total capacity is too large");
         total_capacity += item->capacity;
         if (!s) {
             s = item;
@@ -734,6 +747,10 @@ static int new_lua(lua_State *L)
         if (capacity <= 0) {
             lua_pushnil(L);
             lua_pushliteral(L, "capacity must be > 0");
+            return 2;
+        } else if ((uintmax_t)capacity > MAX_SAMPLES_CAPACITY) {
+            lua_pushnil(L);
+            lua_pushliteral(L, "capacity is too large");
             return 2;
         } else if (cl <= 0 || cl > 100) {
             lua_pushnil(L);
