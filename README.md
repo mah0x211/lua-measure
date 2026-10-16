@@ -23,6 +23,8 @@ lua-measure focuses on repeatable, statistically defensible benchmarking for Lua
 - **Suite discovery and metadata**: Finds `*_bench.lua` files in directories, runs them sequentially, and records system information for reproducibility.
 
 
+Welch groups use a compact letter display: cases share at least one letter exactly when their Holm-adjusted comparison is non-significant at the 5% level. A case may have multiple letters; sharing a letter does not establish statistical equivalence. In Welch comparison results, `groups[name]` lists all groups containing that case, and each group provides `letter`, `rank`, `names`, and `members`. Letters identify groups, not performance ranks.
+
 ## Command-line Usage
 
 The `measure` command provides an easy way to run benchmark files:
