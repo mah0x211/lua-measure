@@ -121,9 +121,6 @@ static int sampling_lua(sampler_t *s)
         }
     }
 
-    // postprocess the samples object
-    measure_samples_postprocess(s->samples, L);
-
     // no errors
     return 0;
 }
@@ -194,6 +191,8 @@ static int run_lua(lua_State *L)
 
     // run the sampling function
     rv = sampling_lua(&s);
+    // Restore GC state on both successful and failed sampling.
+    measure_samples_postprocess(s.samples, L);
     if (rv != 0) {
         // if there was an error during sampling, return the error
         lua_pushboolean(L, 0);
