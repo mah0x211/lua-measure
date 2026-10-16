@@ -43,7 +43,7 @@ local function generate_times(base_ms, count, variance)
     return times
 end
 
--- Test basic welch t-test functionality with 2 samples
+--- Verify the Welch result structure and one pair comparison for two samples.
 function testcase.basic_two_samples()
     local sample1 = create_samples('fast', generate_times(10, 50))
     local sample2 = create_samples('slow', generate_times(20, 50))
@@ -66,7 +66,7 @@ function testcase.basic_two_samples()
     assert.equal(result.name, "Welch's t-test with Holm correction")
     assert.equal(result.algorithm, 'welch-t-test-holm-correction')
     assert.match(result.description, 'adjusted p-values')
-    assert.match(result.clustering, 'compact letter display')
+    assert.match(result.clustering, 'compact letter display', true)
 
     -- Verify single pair comparison for 2 samples
     assert.equal(#result.pairs, 1)

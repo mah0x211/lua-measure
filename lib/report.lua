@@ -313,14 +313,16 @@ function Report:cluster_analysis()
     end
 end
 
--- Print statistical method information and clustering details
+--- Print the comparison method, case/group counts, and interpretation.
+--- Group counts may describe overlapping Welch letter columns rather than
+--- a partition of cases into disjoint clusters.
 function Report:clustering_details()
     local samples_list = self.samples_list
     local comparison = self:get_comparisons()
 
     self:print([[
 - Method: %s
-- Groups: %d sample groups clustered into %d statistical groups
+- Groups: %d cases represented in %d statistical groups
 - Interpretation: %s
 - Clustering: %s]], comparison.name, #samples_list,
                comparison.groups and #comparison.groups or 0,
@@ -361,7 +363,7 @@ function Report:cluster_analysis_skesd()
         -- Calculate statistics vs baseline
         if rank > 1 and baseline_group and sample_group then
             if baseline_group.id == sample_group.id then
-                -- Same cluster, statistically equivalent
+                -- Same cluster; this does not establish statistical equivalence.
                 significant = "[ ]"
             else
                 -- Different clusters, check for significance
@@ -392,13 +394,15 @@ function Report:cluster_analysis_skesd()
     self:print([[
 ### Statistical Clustering Analysis
 
-**Note: Samples in same cluster are statistically equivalent.**
+**Note: Sharing a cluster does not establish statistical equivalence.**
 ]])
     self:clustering_details()
     self:print(concat(tbl:render(), '\n'))
 end
 
--- Print pairwise statistical comparison table with Welch's t-test
+--- Print the existing Welch table with each case's complete CLD membership.
+--- Letter tokens are separated by spaces; significance and adjusted p-values
+--- retain the existing comparison against the baseline case.
 function Report:cluster_analysis_welcht()
     local comparison = self:get_comparisons()
     if #comparison.groups < 2 then
@@ -414,7 +418,7 @@ function Report:cluster_analysis_welcht()
     local baseline = self.baseline_summary
 
     local tbl = new_table()
-    tbl:add_column("Cluster")
+    tbl:add_column("Letters")
     tbl:add_column("Name")
     tbl:add_column("Mean", true)
     tbl:add_column("#Samples", true) -- Individual sample size
@@ -424,7 +428,10 @@ function Report:cluster_analysis_welcht()
     -- Add data rows
     for _, summary in ipairs(summaries) do
         local name = summary.name
-        local sample_group = comparison.groups[name]
+        local letters = {}
+        for _, group in ipairs(comparison.groups[name]) do
+            letters[#letters + 1] = group.letter
+        end
         local p_adjusted_display = "-"
         local significant = "-"
 
@@ -444,7 +451,7 @@ function Report:cluster_analysis_welcht()
         -- Get sample size
         local sample_size = format("%d", summary.sample_count or 0)
         tbl:add_rows({
-            format("C%d", sample_group.rank),
+            concat(letters, " "),
             name,
             fmt.time(summary.mean),
             sample_size,
