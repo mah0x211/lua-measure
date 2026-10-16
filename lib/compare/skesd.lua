@@ -109,13 +109,13 @@ local function create_skesd_comparisons(skesd_results)
             local relative_difference = mean2 > 0 and
                                             (abs(difference) / mean2 * 100) or 0
 
-            -- Categorize statistical significance
+            -- Categorize statistical significance after Holm correction
             local significance_level = nil
-            if result.p_value < 0.001 then
+            if result.p_adjusted < 0.001 then
                 significance_level = 'p<0.001'
-            elseif result.p_value < 0.01 then
+            elseif result.p_adjusted < 0.01 then
                 significance_level = 'p<0.01'
-            elseif result.p_value < 0.05 then
+            elseif result.p_adjusted < 0.05 then
                 significance_level = 'p<0.05'
             end
 
@@ -127,7 +127,7 @@ local function create_skesd_comparisons(skesd_results)
                 relative_difference = relative_difference,
                 p_value = result.p_value,
                 p_adjusted = result.p_adjusted,
-                significant = result.p_value < 0.05,
+                significant = result.p_adjusted < 0.05,
                 significance_level = significance_level,
                 sample_sizes = {
                     cluster1.count,
